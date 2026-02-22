@@ -1,4 +1,4 @@
-import PriceTable, {
+import {
   calcPricePerFoot,
   type PriceRow,
   type PriceTier,
