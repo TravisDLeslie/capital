@@ -1,4 +1,4 @@
-import React from "react";
+
 import type { PriceTier, SortDir } from "./PriceTable";
 
 type Page = "decking" | "fascia";
