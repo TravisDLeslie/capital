@@ -199,7 +199,7 @@ export default function App() {
                           ].join(" ")}
                         >
                           <span className="text-base leading-none">🔥</span>
-                          Fire Only
+                          Fire Reated Only
                           {fireOnly && (
                             <span className="ml-1 rounded-full bg-[#FC2C38] px-2 py-0.5 text-[10px] font-bold text-white">
                               ON
@@ -221,7 +221,7 @@ export default function App() {
                           ].join(" ")}
                         >
                           <span className="text-base leading-none">❄️</span>
-                          Cool Only
+                          Cool Touch Only
                           {coolOnly && (
                             <span className="ml-1 rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-bold text-white">
                               ON

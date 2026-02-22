@@ -42,9 +42,16 @@ export function calcPricePerFoot(costPerFoot: number, tier: PriceTier) {
 
 function brandStyles(brand: string) {
   const b = brand?.toLowerCase().trim();
-  if (b === "trex") return "bg-sky-100 text-sky-800 ring-1 ring-inset ring-sky-200";
+
+  if (b === "trex")
+    return "bg-sky-100 text-sky-800 ring-1 ring-inset ring-sky-200";
+
+  if (b === "sylvanix")
+    return "bg-purple-100 text-purple-800 ring-1 ring-inset ring-purple-200";
+
   if (b === "timbertech")
     return "bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200";
+
   return "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200";
 }
 
