@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-
-=======
->>>>>>> 3b68391 (fire rated)
 type Page = "decking" | "fascia" | "calculator" | "settings";
 
 export default function Sidebar({
@@ -77,7 +73,3 @@ export default function Sidebar({
     </aside>
   );
 }
-<<<<<<< HEAD
-=======
-
->>>>>>> 3b68391 (fire rated)
