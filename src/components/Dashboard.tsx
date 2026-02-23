@@ -249,10 +249,7 @@ function PipelineWidget({
     () => (Number(ytdChargedOut) || 0) + (Number(totals.committed) || 0),
     [ytdChargedOut, totals.committed]
   );
-  const outlookWeighted = useMemo(
-    () => (Number(ytdChargedOut) || 0) + (Number(totals.weighted) || 0),
-    [ytdChargedOut, totals.weighted]
-  );
+ 
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -333,6 +330,7 @@ function PipelineWidget({
             </div>
           </div>
 
+   
         </div>
       </div>
 
