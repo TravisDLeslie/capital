@@ -1,4 +1,6 @@
-type Page = "decking" | "fascia" | "calculator" | "settings";
+import React from "react";
+
+type Page = "dashboard" | "decking" | "fascia" | "calculator" | "settings";
 
 export default function Sidebar({
   page,
@@ -9,13 +11,18 @@ export default function Sidebar({
   onNavigate: (p: Page) => void;
   onLogout: () => void;
 }) {
-  const NavItem = ({ label, value }: { label: string; value: Page }) => {
+  const TopItem = ({ label, value }: { label: string; value: Page }) => {
     const active = page === value;
 
     return (
-      <button onClick={() => onNavigate(value)} className="group w-full text-left">
-        <div className="relative py-3 px-6 text-sm font-semibold text-white">
-          {label}
+      <button
+        onClick={() => onNavigate(value)}
+        className="group w-full text-left"
+      >
+        <div className="relative flex items-center justify-between px-6 py-3 text-sm font-semibold text-white">
+          <span className={active ? "text-white" : "text-white/85 group-hover:text-white"}>
+            {label}
+          </span>
 
           {/* Active underline */}
           {active && (
@@ -31,6 +38,47 @@ export default function Sidebar({
     );
   };
 
+  const SubItem = ({
+    label,
+    value,
+  }: {
+    label: string;
+    value: Page;
+  }) => {
+    const active = page === value;
+
+    return (
+      <button
+        onClick={() => onNavigate(value)}
+        className="group w-full text-left"
+      >
+        <div
+          className={[
+            "mx-3 flex items-center rounded-lg px-3 py-2 text-sm transition",
+            active
+              ? "bg-white/10 text-white"
+              : "text-white/75 hover:bg-white/5 hover:text-white",
+          ].join(" ")}
+        >
+          {/* left accent for active */}
+          <span
+            className={[
+              "mr-3 h-2 w-2 rounded-full",
+              active ? "bg-[#FC2C38]" : "bg-white/20 group-hover:bg-white/30",
+            ].join(" ")}
+          />
+          <span className="font-semibold">{label}</span>
+        </div>
+      </button>
+    );
+  };
+
+  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+    <div className="px-6 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/35">
+      {children}
+    </div>
+  );
+
   return (
     <aside className="w-72 bg-[#1e1e1e] text-white flex flex-col min-h-screen">
       {/* Logo */}
@@ -45,22 +93,27 @@ export default function Sidebar({
       </div>
 
       {/* Nav */}
-      <nav className="mt-6 space-y-2">
-        <div className="px-6 text-[11px] font-semibold uppercase tracking-wider text-white/40">
-          Decking
-        </div>
-        <NavItem label="Decking Price Lookup" value="decking" />
-        <NavItem label="Fascia Price Lookup" value="fascia" />
-        <NavItem label="Decking Calculator" value="calculator" />
+      <nav className="flex-1">
+        {/* Top level */}
+        <TopItem label="Dashboard" value="dashboard" />
 
-        <div className="mt-6 px-6 text-[11px] font-semibold uppercase tracking-wider text-white/40">
-          Admin
+        <SectionTitle>Decking</SectionTitle>
+
+        {/* Nested group */}
+        <div className="space-y-1">
+          <SubItem label="Price Lookup (Decking)" value="decking" />
+          <SubItem label="Price Lookup (Fascia)" value="fascia" />
+          <SubItem label="Decking Calculator" value="calculator" />
         </div>
-        <NavItem label="Settings" value="settings" />
+
+        <SectionTitle>Admin</SectionTitle>
+        <div className="space-y-1">
+          <SubItem label="Settings" value="settings" />
+        </div>
       </nav>
 
       {/* Footer actions */}
-      <div className="mt-auto border-t border-white/10 px-6 py-4 space-y-3">
+      <div className="border-t border-white/10 px-6 py-4 space-y-3">
         <button
           onClick={onLogout}
           className="w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
