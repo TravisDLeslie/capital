@@ -333,30 +333,6 @@ function PipelineWidget({
             </div>
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 sm:col-span-2">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Outlook (YTD + Weighted)
-                </div>
-                <div className="mt-2 text-2xl font-extrabold text-slate-900">
-                  {money(outlookWeighted)}
-                </div>
-                <div className="mt-1 text-xs text-slate-500">
-                  Aggressive view (probability-weighted pipeline).
-                </div>
-              </div>
-
-              <div className="mt-2 sm:mt-0 rounded-xl bg-[#FC2C38] px-4 py-3 text-white">
-                <div className="text-xs font-semibold opacity-90">Quick read</div>
-                <div className="text-sm font-extrabold">
-                  {outlookCommitted >= outlookWeighted
-                    ? "✅ Pipeline is locked in."
-                    : "📈 Pipeline can push the year higher."}
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
