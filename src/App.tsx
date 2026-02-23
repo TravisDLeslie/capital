@@ -214,7 +214,7 @@ export default function App() {
                   <DeckingCalculator rows={deckingRows as PriceRow[]} tier={tier} />
                 ) : page === "jobs" ? (
   <JobsPage />
-                ) : page === "settings" ? (
+) : page === "settings" ? (
                   <Settings settingsPin="8191" />
                 ) : (
                   <>
