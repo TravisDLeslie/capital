@@ -60,17 +60,6 @@ function isCoolRated(v: unknown) {
   return s === "❄️";
 }
 
-// ✅ Optional placeholder so "jobs" route compiles even if you haven't made JobsPage yet
-function JobsPlaceholder() {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="text-2xl font-extrabold text-slate-900">Jobs Pipeline</div>
-      <div className="mt-2 text-sm text-slate-600">
-        You haven’t plugged JobsPage in yet. If you want, I’ll paste the full JobsPage again.
-      </div>
-    </div>
-  );
-}
 
 export default function App() {
   const [unlocked, setUnlocked] = useState<boolean>(() => isStillUnlocked());
