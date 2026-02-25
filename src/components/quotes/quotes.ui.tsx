@@ -1,5 +1,5 @@
 // src/components/quotes/quotes.ui.tsx
-import React from "react";
+import { useEffect, useMemo, useState } from "react";
 import { money } from "./quotes.logic";
 
 export function Field({

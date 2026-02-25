@@ -1,5 +1,7 @@
 // src/components/quotes/QuotesModal.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import type { Dispatch, SetStateAction } from "react";
+
 import type { Quote, QuoteLineItem, QuoteStatus } from "../../data/quotes";
 import { money } from "./quotes.logic";
 import { Field, ModalShell } from "./quotes.ui";
@@ -20,7 +22,7 @@ export default function QuotesModal({
   open: boolean;
   editing: boolean;
   draft: Draft;
-  setDraft: React.Dispatch<React.SetStateAction<Draft>>;
+  setDraft: Dispatch<SetStateAction<Draft>>;
   onAddLine: () => void;
   onUpdateLine: (id: string, patch: Partial<QuoteLineItem>) => void;
   onRemoveLine: (id: string) => void;
@@ -43,15 +45,21 @@ export default function QuotesModal({
       subtitle="Track Spruce quote # + line items + follow-up date so you close more deals."
       onClose={onClose}
     >
-      {/* scroll area */}
       <div className="max-h-[80vh] overflow-y-auto px-5 py-5 space-y-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Customer *">
             <input
               value={draft.customer}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, customer: e.target.value }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, customer: e.target.value }))}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+            />
+          </Field>
+
+          <Field label="Salesperson (Capital)">
+            <input
+              value={draft.salesperson ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, salesperson: e.target.value }))}
+              placeholder="ex: Joe"
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             />
           </Field>
@@ -59,9 +67,7 @@ export default function QuotesModal({
           <Field label="Job Name">
             <input
               value={draft.jobName ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, jobName: e.target.value }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, jobName: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             />
           </Field>
@@ -69,9 +75,7 @@ export default function QuotesModal({
           <Field label="Spruce Quote #">
             <input
               value={draft.spruceQuoteNumber ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, spruceQuoteNumber: e.target.value }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, spruceQuoteNumber: e.target.value }))}
               placeholder="ex: Q-104233"
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             />
@@ -80,9 +84,7 @@ export default function QuotesModal({
           <Field label="Status">
             <select
               value={draft.status}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, status: e.target.value as QuoteStatus }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as QuoteStatus }))}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             >
               <option value="draft">Draft</option>
@@ -95,9 +97,7 @@ export default function QuotesModal({
           <Field label="Contact Name">
             <input
               value={draft.contactName ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, contactName: e.target.value }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, contactName: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             />
           </Field>
@@ -105,9 +105,7 @@ export default function QuotesModal({
           <Field label="Contact Phone">
             <input
               value={draft.contactPhone ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, contactPhone: e.target.value }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, contactPhone: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             />
           </Field>
@@ -115,9 +113,7 @@ export default function QuotesModal({
           <Field label="Contact Email">
             <input
               value={draft.contactEmail ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, contactEmail: e.target.value }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, contactEmail: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             />
           </Field>
@@ -126,9 +122,7 @@ export default function QuotesModal({
             <input
               type="date"
               value={draft.neededBy ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, neededBy: e.target.value }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, neededBy: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             />
           </Field>
@@ -137,9 +131,7 @@ export default function QuotesModal({
             <input
               type="date"
               value={draft.nextFollowUp ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, nextFollowUp: e.target.value }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, nextFollowUp: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
             />
           </Field>
@@ -148,51 +140,49 @@ export default function QuotesModal({
         <Field label="Follow-up Notes (what to do / say)">
           <textarea
             value={draft.followUpNotes ?? ""}
-            onChange={(e) =>
-              setDraft((d) => ({ ...d, followUpNotes: e.target.value }))
-            }
+            onChange={(e) => setDraft((d) => ({ ...d, followUpNotes: e.target.value }))}
             placeholder="ex: Call GC, confirm framing date, ask for PO, offer delivery schedule..."
             className="h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
           />
         </Field>
 
         {draft.status === "lost" && (
-  <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4">
-    <div className="text-sm font-semibold text-rose-900">Why did we lose it?</div>
-    <div className="mt-1 text-xs text-rose-700">
-      Capture the reason so we can fix patterns (pricing, lead time, missed follow-up, etc.).
-    </div>
+          <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4">
+            <div className="text-sm font-semibold text-rose-900">Why did we lose it?</div>
+            <div className="mt-1 text-xs text-rose-700">
+              Capture the reason so we can fix patterns (pricing, lead time, missed follow-up, etc.).
+            </div>
 
-    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field label="Lost Reason">
-        <select
-          value={draft.lostReason ?? ""}
-          onChange={(e) => setDraft((d) => ({ ...d, lostReason: e.target.value }))}
-          className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
-        >
-          <option value="">Select…</option>
-          <option value="price">Price</option>
-          <option value="lead-time">Lead time</option>
-          <option value="availability">Availability / stock</option>
-          <option value="service">Service / communication</option>
-          <option value="spec-mismatch">Spec mismatch</option>
-          <option value="relationship">Relationship / incumbent supplier</option>
-          <option value="no-decision">No decision / project cancelled</option>
-          <option value="other">Other</option>
-        </select>
-      </Field>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Lost Reason">
+                <select
+                  value={draft.lostReason ?? ""}
+                  onChange={(e) => setDraft((d) => ({ ...d, lostReason: e.target.value }))}
+                  className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                >
+                  <option value="">Select…</option>
+                  <option value="price">Price</option>
+                  <option value="lead-time">Lead time</option>
+                  <option value="availability">Availability / stock</option>
+                  <option value="service">Service / communication</option>
+                  <option value="spec-mismatch">Spec mismatch</option>
+                  <option value="relationship">Relationship / incumbent supplier</option>
+                  <option value="no-decision">No decision / project cancelled</option>
+                  <option value="other">Other</option>
+                </select>
+              </Field>
 
-      <Field label="Lost Reason Notes">
-        <textarea
-          value={draft.lostReasonNotes ?? ""}
-          onChange={(e) => setDraft((d) => ({ ...d, lostReasonNotes: e.target.value }))}
-          placeholder="ex: Beat by $220, but we had better material. Follow-up was 5 days late."
-          className="h-24 w-full resize-none rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
-        />
-      </Field>
-    </div>
-  </div>
-)}
+              <Field label="Lost Reason Notes">
+                <textarea
+                  value={draft.lostReasonNotes ?? ""}
+                  onChange={(e) => setDraft((d) => ({ ...d, lostReasonNotes: e.target.value }))}
+                  placeholder="ex: Beat by $220. Follow-up was 5 days late."
+                  className="h-24 w-full resize-none rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                />
+              </Field>
+            </div>
+          </div>
+        )}
 
         <Field label="Internal Notes">
           <textarea
@@ -270,9 +260,7 @@ export default function QuotesModal({
                       <td className="px-3 py-2 text-right">
                         <input
                           value={String(it.unitPrice ?? 0)}
-                          onChange={(e) =>
-                            onUpdateLine(it.id, { unitPrice: Number(e.target.value) || 0 })
-                          }
+                          onChange={(e) => onUpdateLine(it.id, { unitPrice: Number(e.target.value) || 0 })}
                           inputMode="decimal"
                           className="w-28 rounded-md border border-slate-200 px-2 py-1 text-sm text-right outline-none focus:border-[#FC2C38]"
                         />
@@ -307,13 +295,10 @@ export default function QuotesModal({
             <div className="text-xs text-slate-500">
               Tip: Set <span className="font-semibold">Next Follow-up</span> so it shows up as “Due / Overdue”.
             </div>
-            <div className="text-sm font-extrabold text-slate-900">
-              Subtotal: {money(draftSubtotal)}
-            </div>
+            <div className="text-sm font-extrabold text-slate-900">Subtotal: {money(draftSubtotal)}</div>
           </div>
         </div>
 
-        {/* sticky footer inside scroll area */}
         <div className="sticky bottom-0 bg-white pt-3">
           <div className="flex justify-end gap-2">
             <button
