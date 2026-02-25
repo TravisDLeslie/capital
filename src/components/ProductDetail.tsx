@@ -131,4 +131,4 @@ function Price({ label, value, strong }: { label: string; value: string; strong?
       </div>
     </div>
   );
-}
+};
