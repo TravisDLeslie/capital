@@ -13,11 +13,8 @@ import Settings from "./components/Settings";
 import JobsPage from "./components/JobsPage";
 import QuotesPage from "./components/quotes/QuotesPage";
 
-import PriceTable, {
-  type PriceRow,
-  type PriceTier,
-  type SortDir,
-} from "./components/PriceTable";
+import PriceTable from "./components/PriceTable";
+import type { PriceRow, PriceTier, SortDir } from "./components/PriceTable";
 
 import { deckingRows } from "./data/decking";
 import { fasciaRows } from "./data/fascia";
