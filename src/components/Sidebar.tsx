@@ -1,13 +1,6 @@
-import React from "react";
-
-export type Page =
-  | "dashboard"
-  | "decking"
-  | "fascia"
-  | "calculator"
-  | "jobs"
-  | "settings"
-  | "detail";
+// src/components/Sidebar.tsx
+import React, { useEffect, useMemo, useState } from "react";
+import type { Page } from "./Header"; // ✅ single source of truth
 
 export default function Sidebar({
   page,
@@ -30,18 +23,13 @@ export default function Sidebar({
     const active = page === value;
 
     return (
-      <button
-        onClick={() => onNavigate(value)}
-        className="group w-full text-left"
-        type="button"
-      >
+      <button onClick={() => onNavigate(value)} className="group w-full text-left" type="button">
         <div
           className={[
             "relative flex items-center gap-2 py-2.5 text-sm font-semibold text-white/90",
             indent ? "pl-10 pr-6" : "px-6",
           ].join(" ")}
         >
-          {/* small bullet */}
           {indent && (
             <span
               className={[
@@ -53,12 +41,7 @@ export default function Sidebar({
 
           <span className="truncate">{label}</span>
 
-          {/* Active underline */}
-          {active && (
-            <span className="absolute bottom-0 left-6 h-[3px] w-10 bg-[#FC2C38]" />
-          )}
-
-          {/* Hover underline */}
+          {active && <span className="absolute bottom-0 left-6 h-[3px] w-10 bg-[#FC2C38]" />}
           {!active && (
             <span className="absolute bottom-0 left-6 h-[3px] w-0 bg-[#FC2C38] transition-all duration-300 group-hover:w-10" />
           )}
@@ -73,40 +56,66 @@ export default function Sidebar({
     </div>
   );
 
+  const isDeckingArea = useMemo(
+    () => page === "decking" || page === "fascia" || page === "calculator",
+    [page]
+  );
+
+  const [deckingOpen, setDeckingOpen] = useState<boolean>(isDeckingArea);
+
+  useEffect(() => {
+    if (isDeckingArea) setDeckingOpen(true);
+  }, [isDeckingArea]);
+
   return (
     <aside className="min-h-screen w-72 shrink-0 bg-[#1e1e1e] text-white flex flex-col">
-      {/* Logo */}
       <div className="flex items-center px-6 py-6 border-b border-white/10">
-        <img
-          src="/logo.svg"
-          alt="Capital Lumber Logo"
-          className="h-10 w-auto object-contain"
-        />
+        <img src="/logo.svg" alt="Capital Lumber Logo" className="h-10 w-auto object-contain" />
       </div>
 
-      {/* Nav */}
       <nav className="flex-1">
-        <div className="mt-4">
-          <NavItem label="Dashboard" value="dashboard" />
+        <div className="mt-4 space-y-1">
+          <NavItem label="Team Pulse" value="pulse" />
+          <NavItem label="Sales Dashboard" value="sales" />
         </div>
 
-        <SectionTitle>Decking</SectionTitle>
+        <SectionTitle>Price Lookup</SectionTitle>
 
-        {/* Nested group card */}
-        <div className="mx-3 rounded-xl border border-white/10 bg-white/5 py-2">
-          <NavItem label="Decking Price Lookup" value="decking" indent />
-          <NavItem label="Fascia Price Lookup" value="fascia" indent />
-          <NavItem label="Decking Calculator" value="calculator" indent />
+        <div className="mx-3 mt-2 rounded-xl border border-white/10 bg-white/5">
+          <button
+            type="button"
+            onClick={() => setDeckingOpen((v) => !v)}
+            className="group w-full text-left"
+          >
+            <div className="flex items-center justify-between px-6 py-3 text-sm font-semibold text-white/90">
+              <span>Decking</span>
+              <span className="text-white/50 transition group-hover:text-white/80">
+                {deckingOpen ? "▾" : "▸"}
+              </span>
+            </div>
+          </button>
+
+          {deckingOpen && (
+            <div className="pb-2">
+              <NavItem label="Decking Price Lookup" value="decking" indent />
+              <NavItem label="Fascia Price Lookup" value="fascia" indent />
+              <NavItem label="Decking Calculator" value="calculator" indent />
+            </div>
+          )}
+        </div>
+
+        <div className="mx-3 mt-2 rounded-xl border border-white/10 bg-white/5 py-1">
+          <NavItem label="Trim Price Lookup" value="trim" />
         </div>
 
         <SectionTitle>Pipeline</SectionTitle>
         <NavItem label="Jobs Pipeline" value="jobs" />
+        <NavItem label="Quotes" value="quotes" />
 
         <SectionTitle>Admin</SectionTitle>
         <NavItem label="Settings" value="settings" />
       </nav>
 
-      {/* Footer */}
       <div className="border-t border-white/10 px-6 py-4 space-y-3">
         <button
           onClick={onLogout}

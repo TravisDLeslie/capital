@@ -23,6 +23,48 @@ function isSameMonth(aYear: number, aMonth: number, d: Date) {
   return aYear === d.getFullYear() && aMonth === d.getMonth() + 1;
 }
 
+/** ✅ NEW: Workday helpers (Mon–Sat). We don’t work Sundays. */
+function isSunday(d: Date) {
+  return d.getDay() === 0; // 0 = Sunday
+}
+
+function workdaysElapsedSoFar(year: number, month: number, today: Date) {
+  const lastDay = today.getDate();
+  let count = 0;
+
+  for (let day = 1; day <= lastDay; day++) {
+    const d = new Date(year, month - 1, day);
+    if (!isSunday(d)) count++;
+  }
+
+  return Math.max(1, count); // avoid divide-by-zero
+}
+
+function workdaysInMonth(year: number, month: number) {
+  const total = daysInMonth(year, month);
+  let count = 0;
+
+  for (let day = 1; day <= total; day++) {
+    const d = new Date(year, month - 1, day);
+    if (!isSunday(d)) count++;
+  }
+
+  return Math.max(1, count);
+}
+
+function workdaysLeftInMonth(year: number, month: number, today: Date) {
+  const total = daysInMonth(year, month);
+  const start = today.getDate() + 1;
+  let count = 0;
+
+  for (let day = start; day <= total; day++) {
+    const d = new Date(year, month - 1, day);
+    if (!isSunday(d)) count++;
+  }
+
+  return Math.max(0, count);
+}
+
 function getMonthValue(year: number, month: number) {
   return (
     monthlySales.find((x) => x.year === year && x.month === month)?.chargedOut ??
@@ -207,7 +249,6 @@ function PipelineWidget({
 }) {
   const [jobs, setJobs] = useState<PipelineJob[]>(() => loadJobs());
 
-  // keep dashboard updated if jobs change in another tab/window
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === "capital-lumber-pipeline-jobs") setJobs(loadJobs());
@@ -221,7 +262,6 @@ function PipelineWidget({
     [jobs]
   );
 
-  // ✅ Only jobs expected in the selected year
   const activeJobsThisYear = useMemo(
     () => activeJobs.filter((j) => j.expectedYear === year),
     [activeJobs, year]
@@ -244,12 +284,10 @@ function PipelineWidget({
     return [...activeJobsThisYear].sort(sortByExpectedDate).slice(0, 6);
   }, [activeJobsThisYear]);
 
-  // ✅ Combined outlook numbers
   const outlookCommitted = useMemo(
     () => (Number(ytdChargedOut) || 0) + (Number(totals.committed) || 0),
     [ytdChargedOut, totals.committed]
   );
- 
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -288,7 +326,6 @@ function PipelineWidget({
         </div>
       </div>
 
-      {/* ✅ New: Year outlook (Charged Out + Pipeline) */}
       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -329,12 +366,9 @@ function PipelineWidget({
               Conservative view (PO + in-progress).
             </div>
           </div>
-
-   
         </div>
       </div>
 
-      {/* Next jobs */}
       <div className="mt-5">
         <div className="flex items-center justify-between">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -426,16 +460,15 @@ export default function Dashboard() {
     return getMonthValue(year, month - 1);
   }, [year, month]);
 
-  // Days left & pace (only if selected month is current month on this computer)
+  // ✅ Workday-based pace/projection (exclude Sundays)
   const showDaysLeft = isSameMonth(year, month, now);
-  const totalDays = daysInMonth(year, month);
-  const dayOfMonth = now.getDate();
 
-  const daysLeft = showDaysLeft ? Math.max(0, totalDays - dayOfMonth) : 0;
-  const daysElapsed = showDaysLeft ? Math.max(1, dayOfMonth) : 0;
+  const totalWorkdays = workdaysInMonth(year, month);
+  const workdaysElapsed = showDaysLeft ? workdaysElapsedSoFar(year, month, now) : 0;
+  const workdaysLeft = showDaysLeft ? workdaysLeftInMonth(year, month, now) : 0;
 
-  const pacePerDay = showDaysLeft ? mtd / daysElapsed : 0;
-  const projectedMonthEnd = showDaysLeft ? pacePerDay * totalDays : 0;
+  const pacePerWorkday = showDaysLeft ? mtd / workdaysElapsed : 0;
+  const projectedMonthEnd = showDaysLeft ? pacePerWorkday * totalWorkdays : 0;
 
   // Goal / pace metrics
   const monthsCompleted = month;
@@ -583,7 +616,9 @@ export default function Dashboard() {
           value={money(mtd)}
           sub={
             showDaysLeft
-              ? `⏳ ${daysLeft} day(s) left • Pace: ${money(pacePerDay)} / day`
+              ? `⏳ ${workdaysLeft} workday(s) left • Pace: ${money(
+                  pacePerWorkday
+                )} / workday`
               : lastMonthVal > 0
               ? `${lmDiff >= 0 ? "🚀 Up" : "⚠️ Down"} ${round1(
                   Math.abs(lmPct)
@@ -606,7 +641,7 @@ export default function Dashboard() {
           value={showDaysLeft ? money(projectedMonthEnd) : "—"}
           sub={
             showDaysLeft
-              ? `Based on pace (${money(pacePerDay)}/day)`
+              ? `Based on pace (${money(pacePerWorkday)}/workday)`
               : "Select current month to project"
           }
           tone="neutral"
@@ -624,8 +659,6 @@ export default function Dashboard() {
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <BarChart values={monthValues} goalLine={monthlyGoalLine} />
-
-          {/* ✅ Pipeline now uses selected year + YTD charged out */}
           <PipelineWidget year={year} ytdChargedOut={ytd} />
         </div>
 

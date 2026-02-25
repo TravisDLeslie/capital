@@ -14,8 +14,8 @@ export function monthLabel(m: number) {
 
 export const monthlySales: MonthlySales[] = [
   // ✅ 2026 (this year)
-  { year: 2026, month: 1, chargedOut: 139_000 },
-  { year: 2026, month: 2, chargedOut: 137_000 },
+  { year: 2026, month: 1, chargedOut: 139_634 },
+  { year: 2026, month: 2, chargedOut: 140_986 },
 
   // ✅ 2025 (your “last year” data)
   { year: 2025, month: 1, chargedOut: 90_633.0 },
