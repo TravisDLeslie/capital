@@ -1,6 +1,8 @@
 // src/components/ProductDetail.tsx
+
 import { calcPricePerFoot } from "./PriceTable";
 import type { PriceRow, PriceTier } from "./PriceTable";
+
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
