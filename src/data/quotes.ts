@@ -13,28 +13,29 @@ export type QuoteLineItem = {
 
 export type Quote = {
   id: string;
+  createdAt: number;
+  updatedAt?: number;
+
   customer: string;
+  jobName?: string;
+  spruceQuoteNumber?: string;
+
+  // ✅ ADD
+  salesperson?: string;
+
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
 
-  jobName?: string;
-  spruceQuoteNumber?: string;
-
-  createdAt: number;
-  updatedAt: number;
-
-  neededBy?: string; // ISO date
-  nextFollowUp?: string; // ISO date
-  followUpNotes?: string;
-
   status: QuoteStatus;
 
-  lostReason?: string;        // short label (price, lead time, etc.)
-  lostReasonNotes?: string;   // longer “why” detail
+  neededBy?: string;
+  nextFollowUp?: string;
+
+  followUpNotes?: string;
   notes?: string;
 
-  items: QuoteLineItem[];
+  items?: QuoteLineItem[];
 };
 
 const KEY = "capital-lumber-quotes";
@@ -66,6 +67,7 @@ export function emptyQuote(): Omit<Quote, "id" | "createdAt" | "updatedAt"> {
     contactEmail: "",
     jobName: "",
     spruceQuoteNumber: "",
+    salesperson: "",
     neededBy: "",
     nextFollowUp: "",
     followUpNotes: "",

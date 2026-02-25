@@ -1,4 +1,4 @@
-// src/components/QuotesPage.tsx
+// src/components/quotes/QuotesPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   type Quote,
@@ -65,6 +65,12 @@ export default function QuotesPage() {
 
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
+  // ✅ salespeople list (edit these)
+  const salespeople = useMemo(
+    () => ["—", "Travis", "Dane", "McKenzie", "Joe"],
+    []
+  );
+
   function persist(next: Quote[]) {
     setQuotes(next);
     saveQuotes(next);
@@ -72,9 +78,7 @@ export default function QuotesPage() {
 
   function updateQuote(id: string, patch: Partial<Quote>) {
     const now = Date.now();
-    persist(
-      quotes.map((q) => (q.id === id ? { ...q, ...patch, updatedAt: now } : q))
-    );
+    persist(quotes.map((q) => (q.id === id ? { ...q, ...patch, updatedAt: now } : q)));
   }
 
   useEffect(() => {
@@ -89,7 +93,7 @@ export default function QuotesPage() {
       .filter((qt) => (status === "all" ? true : qt.status === status))
       .filter((qt) => {
         if (!q) return true;
-        const blob = `${qt.customer} ${qt.jobName ?? ""} ${
+        const blob = `${qt.customer} ${qt.salesperson ?? ""} ${qt.jobName ?? ""} ${
           qt.spruceQuoteNumber ?? ""
         } ${qt.contactName ?? ""} ${qt.contactPhone ?? ""} ${
           qt.contactEmail ?? ""
@@ -99,20 +103,10 @@ export default function QuotesPage() {
       .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
   }, [quotes, query, status]);
 
-  // ✅ topline stats with color
+  // ✅ topline stats
   const topline = useMemo(() => {
-    const sums: Record<QuoteStatus, number> = {
-      draft: 0,
-      sent: 0,
-      won: 0,
-      lost: 0,
-    };
-    const counts: Record<QuoteStatus, number> = {
-      draft: 0,
-      sent: 0,
-      won: 0,
-      lost: 0,
-    };
+    const sums: Record<QuoteStatus, number> = { draft: 0, sent: 0, won: 0, lost: 0 };
+    const counts: Record<QuoteStatus, number> = { draft: 0, sent: 0, won: 0, lost: 0 };
 
     for (const q of quotes) {
       sums[q.status] += quoteTotal(q);
@@ -176,9 +170,7 @@ export default function QuotesPage() {
   function updateLine(id: string, patch: Partial<QuoteLineItem>) {
     setDraft((d) => ({
       ...d,
-      items: (d.items ?? []).map((it) =>
-        it.id === id ? { ...it, ...patch } : it
-      ),
+      items: (d.items ?? []).map((it) => (it.id === id ? { ...it, ...patch } : it)),
     }));
   }
 
@@ -206,6 +198,10 @@ export default function QuotesPage() {
 
     if (cleanedItems.length === 0) return;
 
+    // ✅ clean salesperson value
+    const sp = (draft.salesperson ?? "").trim();
+    const cleanedSalesperson = !sp || sp === "—" ? "" : sp;
+
     if (editingId) {
       persist(
         quotes.map((q) =>
@@ -213,6 +209,7 @@ export default function QuotesPage() {
             ? {
                 ...q,
                 ...draft,
+                salesperson: cleanedSalesperson,
                 items: cleanedItems,
                 updatedAt: now,
               }
@@ -223,6 +220,7 @@ export default function QuotesPage() {
       const newQuote: Quote = {
         id: uid(),
         ...draft,
+        salesperson: cleanedSalesperson,
         items: cleanedItems,
         createdAt: now,
         updatedAt: now,
@@ -239,8 +237,7 @@ export default function QuotesPage() {
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Quotes</h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Log Spruce quote #, line items, and follow-up timeline so nothing
-            dies in the inbox.
+            Log Spruce quote #, line items, and follow-up timeline so nothing dies in the inbox.
           </p>
         </div>
 
@@ -253,50 +250,18 @@ export default function QuotesPage() {
         </button>
       </div>
 
-      {/* ✅ Topline $ by status (nice UI + color) */}
+      {/* ✅ Topline $ by status */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <ToplineCard
-          tone="neutral"
-          label="Draft"
-          amount={topline.sums.draft}
-          count={topline.counts.draft}
-          sub="Not sent yet"
-        />
-        <ToplineCard
-          tone="info"
-          label="Sent"
-          amount={topline.sums.sent}
-          count={topline.counts.sent}
-          sub="Out for decision"
-        />
-        <ToplineCard
-          tone="good"
-          label="Won"
-          amount={topline.sums.won}
-          count={topline.counts.won}
-          sub="Closed / landed"
-        />
-        <ToplineCard
-          tone="bad"
-          label="Lost"
-          amount={topline.sums.lost}
-          count={topline.counts.lost}
-          sub="Learn + move on"
-        />
+        <ToplineCard tone="neutral" label="Draft" amount={topline.sums.draft} count={topline.counts.draft} sub="Not sent yet" />
+        <ToplineCard tone="info" label="Sent" amount={topline.sums.sent} count={topline.counts.sent} sub="Out for decision" />
+        <ToplineCard tone="good" label="Won" amount={topline.sums.won} count={topline.counts.won} sub="Closed / landed" />
+        <ToplineCard tone="bad" label="Lost" amount={topline.sums.lost} count={topline.counts.lost} sub="Learn + move on" />
       </div>
 
       {/* Quick stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card
-          label="Open Quotes (Draft + Sent)"
-          value={String(topline.openCount)}
-          sub="Active quotes that could turn into sales."
-        />
-        <Card
-          label="Follow-ups Due"
-          value={String(topline.followDueCount)}
-          sub="Due today or overdue (based on Next Follow-up)."
-        />
+        <Card label="Open Quotes (Draft + Sent)" value={String(topline.openCount)} sub="Active quotes that could turn into sales." />
+        <Card label="Follow-ups Due" value={String(topline.followDueCount)} sub="Due today or overdue (based on Next Follow-up)." />
       </div>
 
       {/* Filters */}
@@ -305,7 +270,7 @@ export default function QuotesPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search customer, job, Spruce quote #, contact..."
+            placeholder="Search customer, salesperson, job, Spruce quote #, contact..."
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
           />
         </div>
@@ -329,9 +294,7 @@ export default function QuotesPage() {
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-200 px-5 py-4">
           <div className="text-sm font-semibold text-slate-800">Quotes</div>
-          <div className="mt-1 text-xs text-slate-500">
-            Click a quote row to open it.
-          </div>
+          <div className="mt-1 text-xs text-slate-500">Click a quote row to open it.</div>
         </div>
 
         <div className="overflow-auto">
@@ -339,6 +302,7 @@ export default function QuotesPage() {
             <thead className="bg-slate-50 text-xs font-bold text-slate-500">
               <tr className="text-left">
                 <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Salesperson</th>
                 <th className="px-4 py-3">Job</th>
                 <th className="px-4 py-3">Spruce Quote #</th>
                 <th className="px-4 py-3">Follow-up</th>
@@ -352,6 +316,7 @@ export default function QuotesPage() {
               {filtered.map((q) => {
                 const total = quoteTotal(q);
                 const du = daysUntil(q.nextFollowUp);
+
                 const followText =
                   q.nextFollowUp && du != null
                     ? du > 0
@@ -361,7 +326,6 @@ export default function QuotesPage() {
                       : `Overdue ${Math.abs(du)}`
                     : "—";
 
-                // due styling
                 const dueTone =
                   du == null
                     ? "text-slate-700"
@@ -383,30 +347,25 @@ export default function QuotesPage() {
                     }}
                     title="Click to open quote"
                   >
-                    <td className="px-4 py-3 font-semibold text-slate-900">
-                      {q.customer}
-                    </td>
-                    <td className="px-4 py-3 text-slate-800">
-                      {q.jobName || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {q.spruceQuoteNumber || "—"}
-                    </td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{q.customer}</td>
+
+                    {/* ✅ salesperson column */}
+                    <td className="px-4 py-3 text-slate-800">{q.salesperson || "—"}</td>
+
+                    <td className="px-4 py-3 text-slate-800">{q.jobName || "—"}</td>
+
+                    <td className="px-4 py-3 text-slate-700">{q.spruceQuoteNumber || "—"}</td>
+
                     <td className={`px-4 py-3 ${dueTone}`}>{followText}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                      {money(total)}
-                    </td>
+
+                    <td className="px-4 py-3 text-right font-semibold text-slate-900">{money(total)}</td>
+
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ring-1 ${statusPill(
-                          q.status
-                        )}`}
-                      >
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ring-1 ${statusPill(q.status)}`}>
                         {statusLabel[q.status]}
                       </span>
                     </td>
 
-                    {/* Quick actions */}
                     <td className="px-4 py-3 text-right">
                       <div className="relative inline-flex gap-2">
                         <button
@@ -477,12 +436,8 @@ export default function QuotesPage() {
 
               {!filtered.length && (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-12 text-center text-slate-500"
-                  >
-                    No quotes yet. Add one with{" "}
-                    <span className="font-semibold">+ New Quote</span>.
+                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                    No quotes yet. Add one with <span className="font-semibold">+ New Quote</span>.
                   </td>
                 </tr>
               )}
@@ -495,34 +450,41 @@ export default function QuotesPage() {
       {open && (
         <Modal onClose={() => setOpen(false)}>
           <div className="border-b border-slate-200 px-5 py-4">
-            <div className="text-sm font-semibold text-slate-900">
-              {editingId ? "Edit Quote" : "New Quote"}
-            </div>
+            <div className="text-sm font-semibold text-slate-900">{editingId ? "Edit Quote" : "New Quote"}</div>
             <div className="mt-1 text-xs text-slate-500">
-              Track Spruce quote # + line items + follow-up date so you close
-              more deals.
+              Track Spruce quote # + line items + follow-up date so you close more deals.
             </div>
           </div>
 
           <div className="max-h-[80vh] overflow-y-auto px-5 py-5 space-y-5">
-            {/* Header fields */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Customer *">
                 <input
                   value={draft.customer}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, customer: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, customer: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 />
+              </Field>
+
+              {/* ✅ NEW: Salesperson */}
+              <Field label="Salesperson (us)">
+                <select
+                  value={draft.salesperson ?? ""}
+                  onChange={(e) => setDraft((d) => ({ ...d, salesperson: e.target.value }))}
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                >
+                  {salespeople.map((sp) => (
+                    <option key={sp} value={sp === "—" ? "" : sp}>
+                      {sp}
+                    </option>
+                  ))}
+                </select>
               </Field>
 
               <Field label="Job Name">
                 <input
                   value={draft.jobName ?? ""}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, jobName: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, jobName: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 />
               </Field>
@@ -530,12 +492,7 @@ export default function QuotesPage() {
               <Field label="Spruce Quote #">
                 <input
                   value={draft.spruceQuoteNumber ?? ""}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      spruceQuoteNumber: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, spruceQuoteNumber: e.target.value }))}
                   placeholder="ex: Q-104233"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 />
@@ -544,13 +501,8 @@ export default function QuotesPage() {
               <Field label="Status">
                 <select
                   value={draft.status}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      status: e.target.value as QuoteStatus,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as QuoteStatus }))}
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 >
                   <option value="draft">Draft</option>
                   <option value="sent">Sent</option>
@@ -562,9 +514,7 @@ export default function QuotesPage() {
               <Field label="Contact Name">
                 <input
                   value={draft.contactName ?? ""}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, contactName: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, contactName: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 />
               </Field>
@@ -572,9 +522,7 @@ export default function QuotesPage() {
               <Field label="Contact Phone">
                 <input
                   value={draft.contactPhone ?? ""}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, contactPhone: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, contactPhone: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 />
               </Field>
@@ -582,9 +530,7 @@ export default function QuotesPage() {
               <Field label="Contact Email">
                 <input
                   value={draft.contactEmail ?? ""}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, contactEmail: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, contactEmail: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 />
               </Field>
@@ -593,9 +539,7 @@ export default function QuotesPage() {
                 <input
                   type="date"
                   value={draft.neededBy ?? ""}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, neededBy: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, neededBy: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 />
               </Field>
@@ -604,9 +548,7 @@ export default function QuotesPage() {
                 <input
                   type="date"
                   value={draft.nextFollowUp ?? ""}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, nextFollowUp: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, nextFollowUp: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
                 />
               </Field>
@@ -615,9 +557,7 @@ export default function QuotesPage() {
             <Field label="Follow-up Notes (what to do / say)">
               <textarea
                 value={draft.followUpNotes ?? ""}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, followUpNotes: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, followUpNotes: e.target.value }))}
                 placeholder="ex: Call GC, confirm framing date, ask for PO, offer delivery schedule..."
                 className="h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
               />
@@ -635,12 +575,8 @@ export default function QuotesPage() {
             <div className="rounded-xl border border-slate-200">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">
-                    Line Items
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Add products/materials being quoted.
-                  </div>
+                  <div className="text-sm font-semibold text-slate-900">Line Items</div>
+                  <div className="text-xs text-slate-500">Add products/materials being quoted.</div>
                 </div>
                 <button
                   type="button"
@@ -668,73 +604,63 @@ export default function QuotesPage() {
 
                   <tbody className="divide-y divide-slate-200">
                     {(draft.items ?? []).map((it) => {
-                      const lineTotal =
-                        (Number(it.qty) || 0) * (Number(it.unitPrice) || 0);
+                      const lineTotal = (Number(it.qty) || 0) * (Number(it.unitPrice) || 0);
                       return (
                         <tr key={it.id}>
                           <td className="px-3 py-2">
                             <input
                               value={it.sku ?? ""}
-                              onChange={(e) =>
-                                updateLine(it.id, { sku: e.target.value })
-                              }
+                              onChange={(e) => updateLine(it.id, { sku: e.target.value })}
                               className="w-28 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-[#FC2C38]"
                             />
                           </td>
+
                           <td className="px-3 py-2">
                             <input
                               value={it.description}
-                              onChange={(e) =>
-                                updateLine(it.id, { description: e.target.value })
-                              }
+                              onChange={(e) => updateLine(it.id, { description: e.target.value })}
                               className="w-full min-w-[260px] rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-[#FC2C38]"
                             />
                           </td>
+
                           <td className="px-3 py-2 text-right">
                             <input
                               value={String(it.qty ?? 0)}
-                              onChange={(e) =>
-                                updateLine(it.id, {
-                                  qty: Number(e.target.value) || 0,
-                                })
-                              }
+                              onChange={(e) => updateLine(it.id, { qty: Number(e.target.value) || 0 })}
                               inputMode="decimal"
                               className="w-24 rounded-md border border-slate-200 px-2 py-1 text-sm text-right outline-none focus:border-[#FC2C38]"
                             />
                           </td>
+
                           <td className="px-3 py-2">
                             <input
                               value={it.unit ?? "ea"}
-                              onChange={(e) =>
-                                updateLine(it.id, { unit: e.target.value })
-                              }
+                              onChange={(e) => updateLine(it.id, { unit: e.target.value })}
                               className="w-20 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-[#FC2C38]"
                             />
                           </td>
+
                           <td className="px-3 py-2 text-right">
                             <input
                               value={String(it.unitPrice ?? 0)}
-                              onChange={(e) =>
-                                updateLine(it.id, {
-                                  unitPrice: Number(e.target.value) || 0,
-                                })
-                              }
+                              onChange={(e) => updateLine(it.id, { unitPrice: Number(e.target.value) || 0 })}
                               inputMode="decimal"
                               className="w-28 rounded-md border border-slate-200 px-2 py-1 text-sm text-right outline-none focus:border-[#FC2C38]"
                             />
                           </td>
+
                           <td className="px-3 py-2">
                             <input
                               value={it.vendor ?? ""}
-                              onChange={(e) =>
-                                updateLine(it.id, { vendor: e.target.value })
-                              }
+                              onChange={(e) => updateLine(it.id, { vendor: e.target.value })}
                               className="w-40 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-[#FC2C38]"
                             />
                           </td>
+
                           <td className="px-3 py-2 text-right font-semibold text-slate-900">
                             {money(lineTotal)}
                           </td>
+
                           <td className="px-3 py-2 text-right">
                             <button
                               type="button"
@@ -753,12 +679,9 @@ export default function QuotesPage() {
 
               <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
                 <div className="text-xs text-slate-500">
-                  Tip: Set <span className="font-semibold">Next Follow-up</span>{" "}
-                  so it shows up as “Due / Overdue”.
+                  Tip: Set <span className="font-semibold">Next Follow-up</span> so it shows up as “Due / Overdue”.
                 </div>
-                <div className="text-sm font-extrabold text-slate-900">
-                  Subtotal: {money(draftSubtotal)}
-                </div>
+                <div className="text-sm font-extrabold text-slate-900">Subtotal: {money(draftSubtotal)}</div>
               </div>
             </div>
 
@@ -833,22 +756,14 @@ function ToplineCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${dot}`} />
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              {label}
-            </div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">{label}</div>
           </div>
 
-          <div className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
-            {money(amount)}
-          </div>
-
+          <div className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">{money(amount)}</div>
           <div className="mt-1 text-xs text-slate-600">{sub}</div>
         </div>
 
-        <span
-          className={`shrink-0 inline-flex rounded-full px-3 py-1 text-xs font-bold ring-1 ${toneBadge}`}
-          title="Quote count"
-        >
+        <span className={`shrink-0 inline-flex rounded-full px-3 py-1 text-xs font-bold ring-1 ${toneBadge}`} title="Quote count">
           {count}
         </span>
       </div>
@@ -859,12 +774,8 @@ function ToplineCard({
 function Card({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">
-        {value}
-      </div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">{value}</div>
       <div className="mt-2 text-xs text-slate-500">{sub}</div>
     </div>
   );
@@ -879,13 +790,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Modal({
-  children,
-  onClose,
-}: {
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
+function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -893,9 +798,7 @@ function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {children}
-      </div>
+      <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">{children}</div>
     </div>
   );
 }

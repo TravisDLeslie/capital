@@ -29,7 +29,8 @@ export default function Header({
   setSortDir: Dispatch<SetStateAction<SortDir>>;
 }) {
   // Breadcrumb “Price Lookup › X”
-  const isLookupArea = page === "decking" || page === "fascia" || page === "trim" || page === "trimDetail";
+  const isLookupArea =
+  page === "decking" || page === "fascia" || page === "trim" || page === "trimDetail";
 
   // Only show tier + sort on decking/fascia
   const showTierSort = page === "decking" || page === "fascia";
