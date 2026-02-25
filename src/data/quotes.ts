@@ -20,7 +20,7 @@ export type Quote = {
   jobName?: string;
   spruceQuoteNumber?: string;
 
-  // ✅ ADD
+  // ✅ Salesperson on your end
   salesperson?: string;
 
   contactName?: string;
@@ -34,6 +34,10 @@ export type Quote = {
 
   followUpNotes?: string;
   notes?: string;
+
+  // ✅ Lost tracking
+  lostReason?: string;
+  lostReasonNotes?: string;
 
   items?: QuoteLineItem[];
 };
@@ -49,7 +53,7 @@ export function loadQuotes(): Quote[] {
     const raw = localStorage.getItem(KEY);
     if (!raw) return [];
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(data) ? (data as Quote[]) : [];
   } catch {
     return [];
   }
@@ -62,17 +66,26 @@ export function saveQuotes(quotes: Quote[]) {
 export function emptyQuote(): Omit<Quote, "id" | "createdAt" | "updatedAt"> {
   return {
     customer: "",
+    jobName: "",
+    spruceQuoteNumber: "",
+
+    salesperson: "",
+
     contactName: "",
     contactPhone: "",
     contactEmail: "",
-    jobName: "",
-    spruceQuoteNumber: "",
-    salesperson: "",
+
+    status: "draft",
+
     neededBy: "",
     nextFollowUp: "",
+
     followUpNotes: "",
-    status: "draft",
     notes: "",
+
+    lostReason: "",
+    lostReasonNotes: "",
+
     items: [
       {
         id: uid(),

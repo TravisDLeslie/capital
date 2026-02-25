@@ -1,5 +1,5 @@
 // src/components/quotes/QuotesModal.tsx
-import React, { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Quote, QuoteLineItem, QuoteStatus } from "../../data/quotes";
 import { money } from "./quotes.logic";
 import { Field, ModalShell } from "./quotes.ui";
