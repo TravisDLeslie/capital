@@ -1,8 +1,4 @@
-import {
-  calcPricePerFoot,
-  type PriceRow,
-  type PriceTier,
-} from "./PriceTable";
+import { calcPricePerFoot, type PriceRow, type PriceTier } from "./PriceTable";
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
