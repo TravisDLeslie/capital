@@ -1,5 +1,5 @@
 // src/components/quotes/FollowUpsModal.tsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import type { Quote } from "../../data/quotes";
 import {
   followUpLabel,

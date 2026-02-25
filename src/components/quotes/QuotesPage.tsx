@@ -1,23 +1,16 @@
 // src/components/quotes/QuotesPage.tsx
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  type Quote,
-  type QuoteLineItem,
-  type QuoteStatus,
-  emptyQuote,
-  loadQuotes,
-  saveQuotes,
-  uid,
-} from "../../data/quotes";
+import { useEffect, useMemo, useState } from "react";
+import type { Quote, QuoteLineItem, QuoteStatus } from "../../data/quotes";
+import { emptyQuote, loadQuotes, saveQuotes, uid } from "../../data/quotes";
 
 import {
-  daysUntil,
   followUpLabel,
   followUpToneClass,
   money,
   quoteTotal,
   statusLabel,
   statusPill,
+  daysUntil,
 } from "./quotes.logic";
 
 import { Card, ToplineCard } from "./quotes.ui";
@@ -56,15 +49,16 @@ export default function QuotesPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+
     return quotes
       .filter((qt) => (status === "all" ? true : qt.status === status))
       .filter((qt) => {
         if (!q) return true;
-        const blob = `${qt.customer} ${qt.jobName ?? ""} ${qt.spruceQuoteNumber ?? ""} ${
+        const blob = `${qt.customer} ${qt.salesperson ?? ""} ${qt.jobName ?? ""} ${qt.spruceQuoteNumber ?? ""} ${
           qt.contactName ?? ""
-        } ${qt.contactPhone ?? ""} ${qt.contactEmail ?? ""} ${qt.notes ?? ""} ${
-          qt.followUpNotes ?? ""
-        }`;
+        } ${qt.contactPhone ?? ""} ${qt.contactEmail ?? ""} ${qt.notes ?? ""} ${qt.followUpNotes ?? ""} ${
+          qt.lostReason ?? ""
+        } ${qt.lostReasonNotes ?? ""}`;
         return blob.toLowerCase().includes(q);
       })
       .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
@@ -103,7 +97,7 @@ export default function QuotesPage() {
     setOpen(true);
   }
 
-  function remove(id: string) {
+  function removeQuote(id: string) {
     persist(quotes.filter((q) => q.id !== id));
   }
 
@@ -132,8 +126,6 @@ export default function QuotesPage() {
     const customer = draft.customer.trim();
     if (!customer) return;
 
-    const now = Date.now();
-
     const cleanedItems = (draft.items ?? [])
       .map((it) => ({
         ...it,
@@ -145,17 +137,12 @@ export default function QuotesPage() {
 
     if (cleanedItems.length === 0) return;
 
+    const now = Date.now();
+
     if (editingId) {
-      persist(
-        quotes.map((q) =>
-          q.id === editingId ? { ...q, ...draft, items: cleanedItems, updatedAt: now } : q
-        )
-      );
+      persist(quotes.map((q) => (q.id === editingId ? { ...q, ...draft, items: cleanedItems, updatedAt: now } : q)));
     } else {
-      persist([
-        { id: uid(), ...draft, items: cleanedItems, createdAt: now, updatedAt: now },
-        ...quotes,
-      ]);
+      persist([{ id: uid(), ...draft, items: cleanedItems, createdAt: now, updatedAt: now }, ...quotes]);
     }
 
     setOpen(false);
@@ -180,7 +167,6 @@ export default function QuotesPage() {
         </button>
       </div>
 
-      {/* Topline $ by status */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <ToplineCard tone="neutral" label="Draft" amount={topline.sums.draft} count={topline.counts.draft} sub="Not sent yet" />
         <ToplineCard tone="info" label="Sent" amount={topline.sums.sent} count={topline.counts.sent} sub="Out for decision" />
@@ -188,13 +174,8 @@ export default function QuotesPage() {
         <ToplineCard tone="bad" label="Lost" amount={topline.sums.lost} count={topline.counts.lost} sub="Learn + move on" />
       </div>
 
-      {/* Clickable follow-ups */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card
-          label="Open Quotes (Draft + Sent)"
-          value={String(topline.openCount)}
-          sub="Active quotes that could turn into sales."
-        />
+        <Card label="Open Quotes (Draft + Sent)" value={String(topline.openCount)} sub="Active quotes that could turn into sales." />
         <Card
           label="Follow-ups Due"
           value={String(topline.followDueCount)}
@@ -203,13 +184,12 @@ export default function QuotesPage() {
         />
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="w-full sm:max-w-md">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search customer, job, Spruce quote #, contact..."
+            placeholder="Search customer, salesperson, job, quote #, contact..."
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
           />
         </div>
@@ -229,7 +209,6 @@ export default function QuotesPage() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-200 px-5 py-4">
           <div className="text-sm font-semibold text-slate-800">Quotes</div>
@@ -241,6 +220,7 @@ export default function QuotesPage() {
             <thead className="bg-slate-50 text-xs font-bold text-slate-500">
               <tr className="text-left">
                 <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Salesperson</th>
                 <th className="px-4 py-3">Job</th>
                 <th className="px-4 py-3">Spruce Quote #</th>
                 <th className="px-4 py-3">Follow-up</th>
@@ -263,26 +243,28 @@ export default function QuotesPage() {
                   }}
                 >
                   <td className="px-4 py-3 font-semibold text-slate-900">{q.customer}</td>
-                  <td className="px-4 py-3 text-slate-800">{q.jobName || "—"}</td>
-                  <td className="px-4 py-3">
-  <div className="font-semibold text-slate-900">{q.customer}</div>
 
-  {q.status === "lost" && (q.lostReason || q.lostReasonNotes) ? (
-    <div className="mt-1 text-xs text-rose-700">
-      Why: <span className="font-semibold">{q.lostReason || "—"}</span>
-      {q.lostReasonNotes ? ` • ${q.lostReasonNotes}` : ""}
-    </div>
-  ) : null}
-</td>
+                  <td className="px-4 py-3 text-slate-700">{q.salesperson || "—"}</td>
+
+                  <td className="px-4 py-3 text-slate-800">{q.jobName || "—"}</td>
+
                   <td className="px-4 py-3 text-slate-700">{q.spruceQuoteNumber || "—"}</td>
+
                   <td className={`px-4 py-3 ${followUpToneClass(q)}`}>{followUpLabel(q)}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                    {money(quoteTotal(q))}
-                  </td>
+
+                  <td className="px-4 py-3 text-right font-semibold text-slate-900">{money(quoteTotal(q))}</td>
+
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ring-1 ${statusPill(q.status)}`}>
                       {statusLabel[q.status]}
                     </span>
+
+                    {q.status === "lost" && (q.lostReason || q.lostReasonNotes) ? (
+                      <div className="mt-1 text-[11px] text-rose-700">
+                        Why: <span className="font-semibold">{q.lostReason || "—"}</span>
+                        {q.lostReasonNotes ? ` • ${q.lostReasonNotes}` : ""}
+                      </div>
+                    ) : null}
                   </td>
 
                   <td className="px-4 py-3 text-right">
@@ -314,6 +296,7 @@ export default function QuotesPage() {
                           >
                             Mark as Sent
                           </button>
+
                           <button
                             type="button"
                             className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -324,25 +307,26 @@ export default function QuotesPage() {
                           >
                             Mark as Won
                           </button>
-                         <button
-  type="button"
-  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-  onClick={() => {
-    updateQuote(q.id, { status: "lost" });
-    setMenuOpenId(null);
 
-    // Open modal immediately so they must enter WHY
-    openEdit({ ...q, status: "lost" });
-  }}
->
-  Mark as Lost
-</button>
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            onClick={() => {
+                              setMenuOpenId(null);
+                              // immediately open modal as Lost so they fill the reason
+                              openEdit({ ...q, status: "lost" });
+                            }}
+                          >
+                            Mark as Lost
+                          </button>
+
                           <div className="h-px bg-slate-200" />
+
                           <button
                             type="button"
                             className="w-full px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50"
                             onClick={() => {
-                              remove(q.id);
+                              removeQuote(q.id);
                               setMenuOpenId(null);
                             }}
                           >
@@ -357,7 +341,7 @@ export default function QuotesPage() {
 
               {!filtered.length && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
                     No quotes yet. Add one with <span className="font-semibold">+ New Quote</span>.
                   </td>
                 </tr>
@@ -367,7 +351,6 @@ export default function QuotesPage() {
         </div>
       </div>
 
-      {/* Follow-ups modal */}
       <FollowUpsModal
         open={followupsOpen}
         quotes={quotes}
@@ -378,7 +361,6 @@ export default function QuotesPage() {
         }}
       />
 
-      {/* Edit/Create modal */}
       <QuotesModal
         open={open}
         editing={Boolean(editingId)}

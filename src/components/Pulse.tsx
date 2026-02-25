@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { loadJobs, type PipelineJob, monthLabel } from "../data/jobs";
+import { loadJobs, monthLabel } from "../data/jobs";
 
 function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));

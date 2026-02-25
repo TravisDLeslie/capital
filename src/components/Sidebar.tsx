@@ -1,5 +1,5 @@
 // src/components/Sidebar.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Page } from "./Header"; // ✅ single source of truth
 
 export default function Sidebar({
