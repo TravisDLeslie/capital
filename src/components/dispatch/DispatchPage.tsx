@@ -1,6 +1,10 @@
 // src/components/dispatch/DispatchPage.tsx
 import { useMemo, useState } from "react";
-import type { DispatchDependency, DispatchStatus, DispatchStop } from "../../data/dispatch";
+import type {
+  DispatchDependency,
+  DispatchStatus,
+  DispatchStop,
+} from "../../data/dispatch";
 import {
   DELIVERY_TYPES,
   DRIVERS,
@@ -24,7 +28,13 @@ function todayISO() {
   return `${y}-${m}-${day}`;
 }
 
-const TIME_SLOTS = ["7:00–9:00", "9:00–11:00", "11:00–1:00", "1:00–3:00", "3:00–5:00"];
+const TIME_SLOTS = [
+  "7:00–9:00",
+  "9:00–11:00",
+  "11:00–1:00",
+  "1:00–3:00",
+  "3:00–5:00",
+];
 
 const STATUS: { value: DispatchStatus; label: string }[] = [
   { value: "scheduled", label: "Scheduled" },
@@ -37,7 +47,6 @@ const STATUS: { value: DispatchStatus; label: string }[] = [
 ];
 
 const DISPATCH_PIN = "DP3105";
-const DISPATCH_UNLOCK_KEY = "capital-lumber-dispatch-unlocked";
 
 function pill(status: DispatchStatus) {
   switch (status) {
@@ -57,48 +66,55 @@ function pill(status: DispatchStatus) {
 }
 
 type Draft = Omit<DispatchStop, "id" | "createdAt" | "updatedAt">;
+type ModalMode = "view" | "edit";
 
 export default function DispatchPage() {
   const [date, setDate] = useState<string>(() => todayISO());
   const [stops, setStops] = useState<DispatchStop[]>(() => loadDispatch());
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<DispatchStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<DispatchStatus | "all">(
+    "all"
+  );
 
-  // 🔐 edit lock
-  const [dispatchUnlocked, setDispatchUnlocked] = useState<boolean>(() => {
-    return sessionStorage.getItem(DISPATCH_UNLOCK_KEY) === "true";
-  });
-  const [unlockOpen, setUnlockOpen] = useState(false);
+  // 🔐 PIN modal for any write action
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<null | (() => void)>(null);
 
+  // Stop modal
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<ModalMode>("view");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(() => emptyStop(todayISO()));
   const [statusError, setStatusError] = useState<string>("");
 
-  const readOnly = !dispatchUnlocked;
+  const canEdit = mode === "edit"; // only true after PIN for this action flow
 
   function persist(next: DispatchStop[]) {
     setStops(next);
     saveDispatch(next);
   }
 
-  function requireUnlock(action: () => void) {
-    if (dispatchUnlocked) return action();
-    setUnlockOpen(true);
+  // ✅ Always require PIN (no session unlock)
+  function requirePin(action: () => void) {
+    setPendingAction(() => action);
+    setPinOpen(true);
   }
 
   function openNew() {
     setStatusError("");
     setEditingId(null);
     setDraft(emptyStop(date));
+    setMode("edit");
     setOpen(true);
   }
 
-  function openEdit(s: DispatchStop) {
+  // View-only open (team can always view)
+  function openStopView(s: DispatchStop) {
     setStatusError("");
     setEditingId(s.id);
     const { id, createdAt, updatedAt, ...rest } = s;
     setDraft(rest);
+    setMode("view");
     setOpen(true);
   }
 
@@ -117,12 +133,16 @@ export default function DispatchPage() {
         const deps = (s.dependencies ?? [])
           .map((d) => `${d.supplier} ${d.poOrRef ?? ""} ${d.notes ?? ""}`)
           .join(" ");
-        const blob = `${s.customer} ${s.jobName ?? ""} ${s.address ?? ""} ${s.driver ?? ""} ${s.truck ?? ""} ${
-          s.deliveryType ?? ""
-        } ${s.orderRef ?? ""} ${s.phone ?? ""} ${s.notes ?? ""} ${deps}`;
+        const blob = `${s.customer} ${s.jobName ?? ""} ${s.address ?? ""} ${
+          s.driver ?? ""
+        } ${s.truck ?? ""} ${s.deliveryType ?? ""} ${s.orderRef ?? ""} ${
+          s.phone ?? ""
+        } ${s.notes ?? ""} ${deps}`;
         return blob.toLowerCase().includes(q);
       })
-      .sort((a, b) => TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot));
+      .sort(
+        (a, b) => TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot)
+      );
   }, [stops, date, query, statusFilter]);
 
   const bySlot = useMemo(() => {
@@ -133,7 +153,7 @@ export default function DispatchPage() {
   }, [filtered]);
 
   function submit() {
-    if (readOnly) return;
+    if (!canEdit) return;
 
     setStatusError("");
     const customer = (draft.customer ?? "").trim();
@@ -173,17 +193,27 @@ export default function DispatchPage() {
     };
 
     if (editingId) {
-      persist(stops.map((s) => (s.id === editingId ? { ...s, ...payload, updatedAt: now } : s)));
+      persist(
+        stops.map((s) =>
+          s.id === editingId ? { ...s, ...payload, updatedAt: now } : s
+        )
+      );
     } else {
-      const next: DispatchStop = { id: uid(), ...payload, createdAt: now, updatedAt: now };
+      const next: DispatchStop = {
+        id: uid(),
+        ...payload,
+        createdAt: now,
+        updatedAt: now,
+      };
       persist([next, ...stops]);
     }
 
     setOpen(false);
+    setMode("view");
   }
 
   function addDep() {
-    if (readOnly) return;
+    if (!canEdit) return;
     setDraft((d) => ({
       ...d,
       dependencies: [
@@ -194,45 +224,76 @@ export default function DispatchPage() {
   }
 
   function updateDep(id: string, patch: Partial<DispatchDependency>) {
-    if (readOnly) return;
+    if (!canEdit) return;
     setDraft((d) => ({
       ...d,
-      dependencies: (d.dependencies ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x)),
+      dependencies: (d.dependencies ?? []).map((x) =>
+        x.id === id ? { ...x, ...patch } : x
+      ),
     }));
   }
 
   function removeDep(id: string) {
-    if (readOnly) return;
-    setDraft((d) => ({ ...d, dependencies: (d.dependencies ?? []).filter((x) => x.id !== id) }));
+    if (!canEdit) return;
+    setDraft((d) => ({
+      ...d,
+      dependencies: (d.dependencies ?? []).filter((x) => x.id !== id),
+    }));
   }
 
   const readyToShip = isReadyToShip(draft);
   const depsReceived = depsAllReceived(draft.dependencies);
 
+  function tipForStop(s: DispatchStop) {
+    return [
+      s.customer,
+      s.jobName ? `Job: ${s.jobName}` : "",
+      s.driver ? `Driver: ${s.driver}` : "",
+      s.truck ? `Truck: ${s.truck}` : "",
+      s.deliveryType ? `Type: ${s.deliveryType}` : "",
+      s.address ? `Addr: ${s.address}` : "",
+    ]
+      .filter(Boolean)
+      .join(" • ");
+  }
+
   return (
     <div className="w-full space-y-6">
-      {/* 🔐 Unlock overlay */}
-      {unlockOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/40 p-4 flex items-center justify-center">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      {/* 🔐 PIN overlay (background still visible) */}
+      {pinOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
+            onClick={() => {
+              setPinOpen(false);
+              setPendingAction(null);
+            }}
+          />
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="border-b border-slate-200 px-5 py-4">
-              <div className="text-sm font-semibold text-slate-900">Unlock Dispatch Editing</div>
+              <div className="text-sm font-semibold text-slate-900">Dispatcher PIN Required</div>
               <div className="mt-1 text-xs text-slate-500">
-                Dispatch is view-only unless you enter the dispatch PIN.
+                Only dispatcher can add/edit/delete stops.
               </div>
             </div>
+
             <div className="p-5">
               <PinGate
                 correctPin={DISPATCH_PIN}
                 onUnlock={() => {
-                  sessionStorage.setItem(DISPATCH_UNLOCK_KEY, "true");
-                  setDispatchUnlocked(true);
-                  setUnlockOpen(false);
+                  setPinOpen(false);
+                  const act = pendingAction;
+                  setPendingAction(null);
+                  if (act) act();
                 }}
               />
+
               <button
                 type="button"
-                onClick={() => setUnlockOpen(false)}
+                onClick={() => {
+                  setPinOpen(false);
+                  setPendingAction(null);
+                }}
                 className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel
@@ -246,21 +307,15 @@ export default function DispatchPage() {
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Dispatch</h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Timeslots + assignment + dependencies. Cards show status only. “Ready to Ship” is a clear badge.
+            Team can view dispatch. PIN required for any changes.
           </p>
 
-          {readOnly && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-              🔒 View-only
-              <button
-                type="button"
-                onClick={() => setUnlockOpen(true)}
-                className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-extrabold text-white hover:opacity-90"
-              >
-                Unlock Editing
-              </button>
-            </div>
-          )}
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+            👀 View-only for team
+            <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-extrabold text-white">
+              PIN-gated editing
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -271,8 +326,9 @@ export default function DispatchPage() {
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
           />
 
+          {/* ✅ Add Stop always asks for PIN */}
           <button
-            onClick={() => requireUnlock(openNew)}
+            onClick={() => requirePin(openNew)}
             className="rounded-lg bg-[#FC2C38] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
             type="button"
           >
@@ -308,7 +364,7 @@ export default function DispatchPage() {
         </div>
       </div>
 
-      {/* ✅ Mobile-first: stacked slots; Desktop: board columns */}
+      {/* Mobile-first slots */}
       <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-5 lg:gap-4">
         {TIME_SLOTS.map((slot) => (
           <section
@@ -317,7 +373,9 @@ export default function DispatchPage() {
           >
             <div className="border-b border-slate-200 px-4 py-3">
               <div className="text-sm font-semibold text-slate-900">{slot}</div>
-              <div className="mt-0.5 text-xs text-slate-500">{bySlot[slot]?.length ?? 0} stop(s)</div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                {bySlot[slot]?.length ?? 0} stop(s)
+              </div>
             </div>
 
             <div className="p-3 space-y-3">
@@ -333,11 +391,11 @@ export default function DispatchPage() {
                   <button
                     key={s.id}
                     type="button"
-                    onClick={() => requireUnlock(() => openEdit(s))}
+                    onClick={() => openStopView(s)}
                     className={`relative w-full text-left rounded-2xl border p-4 ${cardClass}`}
-                    title={readOnly ? "Unlock editing to open" : "Click to open"}
+                    title={tipForStop(s) || "Click to view"}
                   >
-                    {/* Top badges row (never covers the name) */}
+                    {/* Top badges row */}
                     <div className="absolute left-3 top-[-10px] z-10 flex gap-2">
                       {hotshot && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-3 py-1 text-[11px] font-extrabold text-white shadow ring-1 ring-rose-700/20">
@@ -351,7 +409,6 @@ export default function DispatchPage() {
                       )}
                     </div>
 
-                    {/* header */}
                     <div className="flex items-start justify-between gap-2 pt-2">
                       <div className="min-w-0">
                         <div className="truncate text-base font-extrabold text-slate-900">
@@ -362,17 +419,11 @@ export default function DispatchPage() {
                         </div>
                       </div>
 
-                      {/* ✅ Status only */}
-                      <span
-                        className={`shrink-0 inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ring-1 ${pill(
-                          s.status
-                        )}`}
-                      >
+                      <span className={`shrink-0 inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ring-1 ${pill(s.status)}`}>
                         {STATUS.find((x) => x.value === s.status)?.label ?? s.status}
                       </span>
                     </div>
 
-                    {/* body */}
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                       <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
                         <div className="text-[10px] font-semibold uppercase text-slate-500">Driver</div>
@@ -407,16 +458,38 @@ export default function DispatchPage() {
         ))}
       </div>
 
-      {/* Modal (edit/create) - ONLY reachable after unlock */}
+      {/* Stop modal */}
       {open && (
-        <Modal onClose={() => setOpen(false)}>
+        <Modal onClose={() => { setOpen(false); setMode("view"); }}>
           <div className="border-b border-slate-200 px-5 py-4">
-            <div className="text-sm font-semibold text-slate-900">
-              {editingId ? "Edit Dispatch Stop" : "New Dispatch Stop"}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {editingId ? "Dispatch Stop" : "New Dispatch Stop"}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  Team can view. PIN required for any edits.
+                </div>
+              </div>
+
+              {/* ✅ Edit always asks for PIN */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => requirePin(() => setMode("edit"))}
+                  className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:opacity-90"
+                  title="Dispatcher only"
+                >
+                  {mode === "edit" ? "Editing" : "Edit"}
+                </button>
+              </div>
             </div>
-            <div className="mt-1 text-xs text-slate-500">
-              Status is the only card state. “Ready to Ship” requires dependencies received + ✅ Order checked.
-            </div>
+
+            {mode !== "edit" && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700">
+                🔒 View-only. Click <span className="font-extrabold">Edit</span> and enter PIN to make changes.
+              </div>
+            )}
           </div>
 
           <div className="max-h-[80vh] overflow-y-auto px-5 py-5 space-y-5">
@@ -431,16 +504,18 @@ export default function DispatchPage() {
                 <input
                   type="date"
                   value={draft.date}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
 
               <Field label="Timeslot">
                 <select
                   value={draft.timeSlot}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, timeSlot: e.target.value }))}
-                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {TIME_SLOTS.map((s) => (
                     <option key={s} value={s}>
@@ -453,40 +528,45 @@ export default function DispatchPage() {
               <Field label="Customer *">
                 <input
                   value={draft.customer}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, customer: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
 
               <Field label="Job Name">
                 <input
                   value={draft.jobName ?? ""}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, jobName: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
 
               <Field label="Address">
                 <input
                   value={draft.address ?? ""}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
 
               <Field label="Phone">
                 <input
                   value={draft.phone ?? ""}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
 
               <Field label="Delivery Type">
                 <select
                   value={draft.deliveryType ?? DELIVERY_TYPES[0]}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, deliveryType: e.target.value }))}
-                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {DELIVERY_TYPES.map((t) => (
                     <option key={t} value={t}>
@@ -499,8 +579,9 @@ export default function DispatchPage() {
               <Field label="Driver">
                 <select
                   value={draft.driver ?? DRIVERS[0]}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, driver: e.target.value }))}
-                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {DRIVERS.map((x) => (
                     <option key={x} value={x}>
@@ -513,8 +594,9 @@ export default function DispatchPage() {
               <Field label="Truck">
                 <select
                   value={draft.truck ?? TRUCKS[0]}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, truck: e.target.value }))}
-                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {TRUCKS.map((x) => (
                     <option key={x} value={x}>
@@ -527,27 +609,26 @@ export default function DispatchPage() {
               <Field label="Order Ref (Spruce SO/Inv)">
                 <input
                   value={draft.orderRef ?? ""}
+                  disabled={!canEdit}
                   onChange={(e) => setDraft((d) => ({ ...d, orderRef: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
 
               <Field label="Status">
                 <select
                   value={draft.status}
+                  disabled={!canEdit}
                   onChange={(e) => {
                     const next = e.target.value as DispatchStatus;
-
-                    // guard: shipping stages require dispatchChecked
                     if ((next === "loading" || next === "out" || next === "delivered") && !draft.dispatchChecked) {
                       setStatusError("To set Loading / Out / Delivered, you must check ✅ Order checked.");
                       return;
                     }
-
                     setStatusError("");
                     setDraft((d) => ({ ...d, status: next }));
                   }}
-                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {STATUS.map((s) => (
                     <option key={s.value} value={s.value}>
@@ -558,14 +639,12 @@ export default function DispatchPage() {
               </Field>
             </div>
 
-            {/* ✅ Dispatcher “check order” */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm font-extrabold text-slate-900">✅ Order checked</div>
                   <div className="mt-1 text-xs text-slate-600">
-                    Dispatcher must verify the order (counts, notes, dependencies). Required for Loading / Out / Delivered
-                    and for the “Ready to Ship” badge.
+                    Required for Loading / Out / Delivered and “Ready to Ship”.
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -591,6 +670,7 @@ export default function DispatchPage() {
                   <input
                     type="checkbox"
                     checked={Boolean(draft.dispatchChecked)}
+                    disabled={!canEdit}
                     onChange={(e) => {
                       setStatusError("");
                       setDraft((d) => ({ ...d, dispatchChecked: e.target.checked }));
@@ -605,9 +685,9 @@ export default function DispatchPage() {
             <Field label="Notes">
               <textarea
                 value={draft.notes ?? ""}
+                disabled={!canEdit}
                 onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
-                className="h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
-                placeholder="ex: call ahead, gate code, long load, crane on site..."
+                className="h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
               />
             </Field>
 
@@ -616,18 +696,18 @@ export default function DispatchPage() {
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold text-slate-900">Supplier Dependencies</div>
-                  <div className="text-xs text-slate-500">
-                    Track anything not in-house yet. When all are Received, dispatch can check ✅ Order checked.
-                  </div>
+                  <div className="text-xs text-slate-500">Track anything not in-house yet.</div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={addDep}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  + Add dependency
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={addDep}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    + Add dependency
+                  </button>
+                )}
               </div>
 
               <div className="overflow-auto">
@@ -642,31 +722,32 @@ export default function DispatchPage() {
                       <th className="px-3 py-2 text-right"></th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-slate-200">
                     {(draft.dependencies ?? []).map((d) => (
                       <tr key={d.id}>
                         <td className="px-3 py-2">
                           <input
                             value={d.supplier}
+                            disabled={!canEdit}
                             onChange={(e) => updateDep(d.id, { supplier: e.target.value })}
-                            className="w-48 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-[#FC2C38]"
-                            placeholder="Boise Cascade"
+                            className="w-48 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
                         <td className="px-3 py-2">
                           <input
                             value={d.poOrRef ?? ""}
+                            disabled={!canEdit}
                             onChange={(e) => updateDep(d.id, { poOrRef: e.target.value })}
-                            className="w-40 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-[#FC2C38]"
-                            placeholder="PO-1234"
+                            className="w-40 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
                         <td className="px-3 py-2">
                           <input
                             value={d.eta ?? ""}
+                            disabled={!canEdit}
                             onChange={(e) => updateDep(d.id, { eta: e.target.value })}
-                            className="w-32 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-[#FC2C38]"
-                            placeholder="Fri"
+                            className="w-32 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
                         <td className="px-3 py-2">
@@ -674,6 +755,7 @@ export default function DispatchPage() {
                             <input
                               type="checkbox"
                               checked={Boolean(d.received)}
+                              disabled={!canEdit}
                               onChange={(e) => updateDep(d.id, { received: e.target.checked })}
                               className="h-4 w-4"
                             />
@@ -683,19 +765,23 @@ export default function DispatchPage() {
                         <td className="px-3 py-2">
                           <input
                             value={d.notes ?? ""}
+                            disabled={!canEdit}
                             onChange={(e) => updateDep(d.id, { notes: e.target.value })}
-                            className="w-full min-w-[240px] rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-[#FC2C38]"
-                            placeholder="Waiting on trim pack"
+                            className="w-full min-w-[240px] rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => removeDep(d.id)}
-                            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                          >
-                            Remove
-                          </button>
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => removeDep(d.id)}
+                              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                            >
+                              Remove
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -703,7 +789,7 @@ export default function DispatchPage() {
                     {!(draft.dependencies ?? []).length && (
                       <tr>
                         <td colSpan={6} className="px-3 py-8 text-center text-xs text-slate-500">
-                          No dependencies. This can be Ready once dispatch checks the order ✅.
+                          No dependencies.
                         </td>
                       </tr>
                     )}
@@ -712,16 +798,22 @@ export default function DispatchPage() {
               </div>
             </div>
 
+            {/* Footer actions */}
             <div className="sticky bottom-0 bg-white pt-3">
               <div className="flex justify-between gap-2">
+                {/* ✅ Delete always asks for PIN */}
                 {editingId ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      removeStop(editingId);
-                      setOpen(false);
-                    }}
+                    onClick={() =>
+                      requirePin(() => {
+                        removeStop(editingId);
+                        setOpen(false);
+                        setMode("view");
+                      })
+                    }
                     className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                    title="Dispatcher only"
                   >
                     Delete
                   </button>
@@ -731,19 +823,24 @@ export default function DispatchPage() {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setOpen(false)}
+                    onClick={() => { setOpen(false); setMode("view"); }}
                     className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                     type="button"
                   >
-                    Cancel
+                    Close
                   </button>
-                  <button
-                    onClick={submit}
-                    className="rounded-lg bg-[#FC2C38] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-                    type="button"
-                  >
-                    {editingId ? "Save Stop" : "Create Stop"}
-                  </button>
+
+                  {/* ✅ Save/Create always asks for PIN */}
+                  {mode === "edit" && (
+                    <button
+                      onClick={() => requirePin(submit)}
+                      className="rounded-lg bg-[#FC2C38] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                      type="button"
+                      title="Dispatcher only"
+                    >
+                      {editingId ? "Save Stop" : "Create Stop"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
