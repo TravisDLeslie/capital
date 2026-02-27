@@ -1,5 +1,5 @@
 // src/components/Sidebar.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Page } from "./Header"; // ✅ single source of truth
 
 export default function Sidebar({
@@ -50,7 +50,7 @@ export default function Sidebar({
     );
   };
 
-  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+  const SectionTitle = ({ children }: { children: ReactNode }) => (
     <div className="px-6 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/40">
       {children}
     </div>
@@ -109,6 +109,8 @@ export default function Sidebar({
         </div>
 
         <SectionTitle>Pipeline</SectionTitle>
+        {/* ✅ NEW */}
+        <NavItem label="Dispatch" value="dispatch" />
         <NavItem label="Jobs Pipeline" value="jobs" />
         <NavItem label="Quotes" value="quotes" />
 

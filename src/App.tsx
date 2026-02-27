@@ -12,6 +12,7 @@ import ProductDetail from "./components/ProductDetail";
 import Settings from "./components/Settings";
 import JobsPage from "./components/JobsPage";
 import QuotesPage from "./components/quotes/QuotesPage";
+import DispatchPage from "./components/dispatch/DispatchPage";
 
 import PriceTable from "./components/PriceTable";
 import type { PriceRow, PriceTier, SortDir } from "./components/PriceTable";
@@ -25,13 +26,12 @@ import type { TrimRow } from "./data/trim.data";
 
 const APP_PIN = "3105";
 const SALES_PIN = "CP1963";
+const DISPATCH_PIN = "DP3105";
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
 function isStillUnlocked() {
   const unlocked = sessionStorage.getItem("capital-lumber-unlocked") === "true";
-  const unlockedAt = Number(
-    sessionStorage.getItem("capital-lumber-unlocked-at") || "0"
-  );
+  const unlockedAt = Number(sessionStorage.getItem("capital-lumber-unlocked-at") || "0");
   if (!unlocked || !unlockedAt) return false;
   return Date.now() - unlockedAt < EIGHT_HOURS_MS;
 }
@@ -62,20 +62,19 @@ export default function App() {
     return sessionStorage.getItem("capital-lumber-sales-unlocked") === "true";
   });
 
+  const [dispatchUnlocked, setDispatchUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem("capital-lumber-dispatch-unlocked") === "true";
+  });
+
   const [page, setPage] = useState<Page>("pulse");
   const [lastListPage, setLastListPage] = useState<Page>("decking");
 
-  // Decking/Fascia detail state
   const [selectedRow, setSelectedRow] = useState<PriceRow | null>(null);
-
-  // Trim detail state
   const [selectedTrim, setSelectedTrim] = useState<TrimRow | null>(null);
 
-  // Tier/sort (only used on Decking/Fascia lookups + detail)
   const [tier, setTier] = useState<PriceTier>("retail");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  // Decking/Fascia filters
   const [vendor, setVendor] = useState<string>("All Vendors");
   const [query, setQuery] = useState("");
   const [fireOnly, setFireOnly] = useState(false);
@@ -86,15 +85,21 @@ export default function App() {
     setSalesUnlocked(true);
   }
 
+  function unlockDispatch() {
+    sessionStorage.setItem("capital-lumber-dispatch-unlocked", "true");
+    setDispatchUnlocked(true);
+  }
+
   function logout() {
     sessionStorage.removeItem("capital-lumber-unlocked");
     sessionStorage.removeItem("capital-lumber-unlocked-at");
     sessionStorage.removeItem("capital-lumber-sales-unlocked");
+    sessionStorage.removeItem("capital-lumber-dispatch-unlocked");
     setUnlocked(false);
     setSalesUnlocked(false);
+    setDispatchUnlocked(false);
   }
 
-  // 🔐 Auto timeout
   useEffect(() => {
     if (!unlocked) return;
 
@@ -111,11 +116,9 @@ export default function App() {
   function go(next: Page) {
     setPage(next);
 
-    // clear detail selections when leaving their detail pages
     if (next !== "detail") setSelectedRow(null);
     if (next !== "trimDetail") setSelectedTrim(null);
 
-    // reset decking/fascia filters when leaving decking/fascia area
     if (next !== "decking" && next !== "fascia") {
       setVendor("All Vendors");
       setQuery("");
@@ -123,29 +126,24 @@ export default function App() {
       setCoolOnly(false);
     }
 
-    // remember last list page for product detail back
     if (next === "decking" || next === "fascia") setLastListPage(next);
   }
 
-  // Pick dataset for decking/fascia list screens only
-  const data: { title: string; description: string; rows: PriceRow[] } =
-    useMemo(() => {
-      if (page === "fascia") {
-        return {
-          title: "Fascia Product Price Lookup",
-          description:
-            "View fascia pricing by size, series, brand, vendor, and color.",
-          rows: fasciaRows as PriceRow[],
-        };
-      }
-
+  const data: { title: string; description: string; rows: PriceRow[] } = useMemo(() => {
+    if (page === "fascia") {
       return {
-        title: "Decking Product Price Lookup",
-        description:
-          "View decking pricing by size, series, brand, vendor, and color.",
-        rows: deckingRows as PriceRow[],
+        title: "Fascia Product Price Lookup",
+        description: "View fascia pricing by size, series, brand, vendor, and color.",
+        rows: fasciaRows as PriceRow[],
       };
-    }, [page]);
+    }
+
+    return {
+      title: "Decking Product Price Lookup",
+      description: "View decking pricing by size, series, brand, vendor, and color.",
+      rows: deckingRows as PriceRow[],
+    };
+  }, [page]);
 
   const vendors = useMemo(() => {
     const set = new Set(data.rows.map((r) => r.vendor).filter(Boolean));
@@ -156,14 +154,11 @@ export default function App() {
     const q = query.trim().toLowerCase();
 
     return data.rows.filter((r: any) => {
-      const matchesVendor =
-        vendor === "All Vendors" ? true : r.vendor === vendor;
+      const matchesVendor = vendor === "All Vendors" ? true : r.vendor === vendor;
 
       const matchesQuery = !q
         ? true
-        : `${r.size} ${r.series} ${r.brand} ${r.vendor} ${r.color}`
-            .toLowerCase()
-            .includes(q);
+        : `${r.size} ${r.series} ${r.brand} ${r.vendor} ${r.color}`.toLowerCase().includes(q);
 
       const fireVal = r.fireRated ?? r.fire ?? r.fire_rating;
       const coolVal = r.coolRated ?? r.cool ?? r.cool_rating;
@@ -206,13 +201,7 @@ export default function App() {
             <Sidebar page={page} onNavigate={go} onLogout={logout} />
 
             <div className="flex min-w-0 flex-1 flex-col">
-              <Header
-                page={page}
-                tier={tier}
-                setTier={setTier}
-                sortDir={sortDir}
-                setSortDir={setSortDir}
-              />
+              <Header page={page} tier={tier} setTier={setTier} sortDir={sortDir} setSortDir={setSortDir} />
 
               <main className="min-w-0 w-full flex-1 px-6 py-6">
                 {page === "pulse" ? (
@@ -222,6 +211,12 @@ export default function App() {
                     <Dashboard />
                   ) : (
                     <PinGate correctPin={SALES_PIN} onUnlock={unlockSales} />
+                  )
+                ) : page === "dispatch" ? (
+                  dispatchUnlocked ? (
+                    <DispatchPage />
+                  ) : (
+                    <PinGate correctPin={DISPATCH_PIN} onUnlock={unlockDispatch} />
                   )
                 ) : page === "trim" ? (
                   <TrimLookupPage onOpenDetail={openTrimDetail} />
@@ -235,11 +230,7 @@ export default function App() {
                   )
                 ) : page === "detail" ? (
                   selectedRow ? (
-                    <ProductDetail
-                      row={selectedRow}
-                      tier={tier}
-                      onBack={backFromDetail}
-                    />
+                    <ProductDetail row={selectedRow} tier={tier} onBack={backFromDetail} />
                   ) : (
                     <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
                       No product selected. Go back and pick an item.
@@ -255,17 +246,11 @@ export default function App() {
                   <Settings settingsPin="8191" />
                 ) : page === "decking" || page === "fascia" ? (
                   <>
-                    {/* Decking / Fascia Lookup pages */}
                     <div>
-                      <h1 className="text-3xl font-extrabold tracking-tight">
-                        {data.title}
-                      </h1>
-                      <p className="mt-2 max-w-4xl text-sm text-slate-600">
-                        {data.description}
-                      </p>
+                      <h1 className="text-3xl font-extrabold tracking-tight">{data.title}</h1>
+                      <p className="mt-2 max-w-4xl text-sm text-slate-600">{data.description}</p>
                     </div>
 
-                    {/* Filters */}
                     <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                       <div className="w-full sm:w-60">
                         <div className="relative">
@@ -324,26 +309,16 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Table */}
                     <section className="mt-6 w-full rounded-xl border border-slate-200 bg-white shadow-sm">
                       <div className="border-b border-slate-200 px-5 py-4">
                         <div className="text-sm font-semibold text-slate-800">
-                          {page === "fascia"
-                            ? "Fascia Price Lookup"
-                            : "Decking Price Lookup"}
+                          {page === "fascia" ? "Fascia Price Lookup" : "Decking Price Lookup"}
                         </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          Click a row to view product details.
-                        </div>
+                        <div className="mt-1 text-xs text-slate-500">Click a row to view product details.</div>
                       </div>
 
                       <div className="px-5 py-4">
-                        <PriceTable
-                          rows={filteredRows}
-                          tier={tier}
-                          sortDir={sortDir}
-                          onSelectRow={openDetail}
-                        />
+                        <PriceTable rows={filteredRows} tier={tier} sortDir={sortDir} onSelectRow={openDetail} />
                       </div>
                     </section>
                   </>

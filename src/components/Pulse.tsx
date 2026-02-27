@@ -102,7 +102,7 @@ export default function Pulse() {
     <div className="mt-2 text-sm font-semibold text-slate-900">
       We’re not the cheapest yard.
     </div>
-    <div className="mt-1 text-sm text-slate-700">
+    <div className="mt-1 text-lg font-bold text-slate-700">
       We’re the easiest. The most helpful. The most knowledgeable.  
       We provide solutions.
     </div>

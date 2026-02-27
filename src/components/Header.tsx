@@ -7,11 +7,12 @@ export type Page =
   | "sales"
   | "decking"
   | "fascia"
+  | "calculator"
   | "trim"
   | "trimDetail"
-  | "calculator"
   | "jobs"
   | "quotes"
+  | "dispatch"   // ✅ add this
   | "settings"
   | "detail";
 
