@@ -18,8 +18,6 @@ import {
   uid,
 } from "../../data/dispatch";
 
-import PinGate from "../PinGate";
-
 function todayISO() {
   const d = new Date();
   const y = d.getFullYear();
@@ -46,6 +44,7 @@ const STATUS: { value: DispatchStatus; label: string }[] = [
   { value: "canceled", label: "Canceled" },
 ];
 
+// 🔐 Dispatcher-only PIN
 const DISPATCH_PIN = "DP3105";
 
 function pill(status: DispatchStatus) {
@@ -76,7 +75,7 @@ export default function DispatchPage() {
     "all"
   );
 
-  // 🔐 PIN modal for any write action
+  // 🔐 PIN modal for any write action (NO session unlock)
   const [pinOpen, setPinOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | (() => void)>(null);
 
@@ -87,7 +86,7 @@ export default function DispatchPage() {
   const [draft, setDraft] = useState<Draft>(() => emptyStop(todayISO()));
   const [statusError, setStatusError] = useState<string>("");
 
-  const canEdit = mode === "edit"; // only true after PIN for this action flow
+  const canEdit = mode === "edit";
 
   function persist(next: DispatchStop[]) {
     setStops(next);
@@ -127,7 +126,9 @@ export default function DispatchPage() {
 
     return stops
       .filter((s) => s.date === date)
-      .filter((s) => (statusFilter === "all" ? true : s.status === statusFilter))
+      .filter((s) =>
+        statusFilter === "all" ? true : s.status === statusFilter
+      )
       .filter((s) => {
         if (!q) return true;
         const deps = (s.dependencies ?? [])
@@ -161,10 +162,14 @@ export default function DispatchPage() {
 
     // hard rule: shipping stages require dispatchChecked
     if (
-      (draft.status === "loading" || draft.status === "out" || draft.status === "delivered") &&
+      (draft.status === "loading" ||
+        draft.status === "out" ||
+        draft.status === "delivered") &&
       !draft.dispatchChecked
     ) {
-      setStatusError("To set Loading / Out / Delivered, you must check ✅ Order checked.");
+      setStatusError(
+        "To set Loading / Out / Delivered, you must check ✅ Order checked."
+      );
       return;
     }
 
@@ -218,7 +223,14 @@ export default function DispatchPage() {
       ...d,
       dependencies: [
         ...(d.dependencies ?? []),
-        { id: uid(), supplier: "", poOrRef: "", eta: "", received: false, notes: "" },
+        {
+          id: uid(),
+          supplier: "",
+          poOrRef: "",
+          eta: "",
+          received: false,
+          notes: "",
+        },
       ],
     }));
   }
@@ -259,48 +271,24 @@ export default function DispatchPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 🔐 PIN overlay (background still visible) */}
+      {/* 🔐 PIN overlay (transparent; Dispatch still visible) */}
       {pinOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
-            onClick={() => {
-              setPinOpen(false);
-              setPendingAction(null);
-            }}
-          />
-          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <div className="text-sm font-semibold text-slate-900">Dispatcher PIN Required</div>
-              <div className="mt-1 text-xs text-slate-500">
-                Only dispatcher can add/edit/delete stops.
-              </div>
-            </div>
-
-            <div className="p-5">
-              <PinGate
-                correctPin={DISPATCH_PIN}
-                onUnlock={() => {
-                  setPinOpen(false);
-                  const act = pendingAction;
-                  setPendingAction(null);
-                  if (act) act();
-                }}
-              />
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPinOpen(false);
-                  setPendingAction(null);
-                }}
-                className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <DispatchPinModal
+          correctPin={DISPATCH_PIN}
+          title="Dispatch Authorization Required"
+          subtitle="Only the dispatcher may add, edit, save, or delete dispatch stops."
+          buttonText="Unlock Dispatch Action"
+          onCancel={() => {
+            setPinOpen(false);
+            setPendingAction(null);
+          }}
+          onSuccess={() => {
+            const act = pendingAction;
+            setPinOpen(false);
+            setPendingAction(null);
+            if (act) act();
+          }}
+        />
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -419,31 +407,52 @@ export default function DispatchPage() {
                         </div>
                       </div>
 
-                      <span className={`shrink-0 inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ring-1 ${pill(s.status)}`}>
-                        {STATUS.find((x) => x.value === s.status)?.label ?? s.status}
+                      <span
+                        className={`shrink-0 inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ring-1 ${pill(
+                          s.status
+                        )}`}
+                      >
+                        {STATUS.find((x) => x.value === s.status)?.label ??
+                          s.status}
                       </span>
                     </div>
 
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                       <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
-                        <div className="text-[10px] font-semibold uppercase text-slate-500">Driver</div>
-                        <div className="font-extrabold text-slate-900">{s.driver || "—"}</div>
+                        <div className="text-[10px] font-semibold uppercase text-slate-500">
+                          Driver
+                        </div>
+                        <div className="font-extrabold text-slate-900">
+                          {s.driver || "—"}
+                        </div>
                       </div>
 
                       <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
-                        <div className="text-[10px] font-semibold uppercase text-slate-500">Truck</div>
-                        <div className="font-extrabold text-slate-900">{s.truck || "—"}</div>
+                        <div className="text-[10px] font-semibold uppercase text-slate-500">
+                          Truck
+                        </div>
+                        <div className="font-extrabold text-slate-900">
+                          {s.truck || "—"}
+                        </div>
                       </div>
                     </div>
 
                     <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200">
-                      <div className="text-[10px] font-semibold uppercase text-slate-500">Delivery Type</div>
-                      <div className={`truncate font-extrabold ${hotshot ? "text-rose-700" : "text-slate-900"}`}>
+                      <div className="text-[10px] font-semibold uppercase text-slate-500">
+                        Delivery Type
+                      </div>
+                      <div
+                        className={`truncate font-extrabold ${
+                          hotshot ? "text-rose-700" : "text-slate-900"
+                        }`}
+                      >
                         {s.deliveryType || "—"}
                       </div>
                     </div>
 
-                    <div className="mt-2 truncate text-sm text-slate-600">{s.address || "—"}</div>
+                    <div className="mt-2 truncate text-sm text-slate-600">
+                      {s.address || "—"}
+                    </div>
                   </button>
                 );
               })}
@@ -460,7 +469,12 @@ export default function DispatchPage() {
 
       {/* Stop modal */}
       {open && (
-        <Modal onClose={() => { setOpen(false); setMode("view"); }}>
+        <Modal
+          onClose={() => {
+            setOpen(false);
+            setMode("view");
+          }}
+        >
           <div className="border-b border-slate-200 px-5 py-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -473,21 +487,21 @@ export default function DispatchPage() {
               </div>
 
               {/* ✅ Edit always asks for PIN */}
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => requirePin(() => setMode("edit"))}
-                  className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:opacity-90"
-                  title="Dispatcher only"
-                >
-                  {mode === "edit" ? "Editing" : "Edit"}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => requirePin(() => setMode("edit"))}
+                className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:opacity-90"
+                title="Dispatcher only"
+              >
+                {mode === "edit" ? "Editing" : "Edit"}
+              </button>
             </div>
 
             {mode !== "edit" && (
               <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700">
-                🔒 View-only. Click <span className="font-extrabold">Edit</span> and enter PIN to make changes.
+                🔒 View-only. Click{" "}
+                <span className="font-extrabold">Edit</span> and enter PIN to
+                make changes.
               </div>
             )}
           </div>
@@ -505,7 +519,9 @@ export default function DispatchPage() {
                   type="date"
                   value={draft.date}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, date: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
@@ -514,7 +530,9 @@ export default function DispatchPage() {
                 <select
                   value={draft.timeSlot}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, timeSlot: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, timeSlot: e.target.value }))
+                  }
                   className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {TIME_SLOTS.map((s) => (
@@ -529,7 +547,9 @@ export default function DispatchPage() {
                 <input
                   value={draft.customer}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, customer: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, customer: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
@@ -538,7 +558,9 @@ export default function DispatchPage() {
                 <input
                   value={draft.jobName ?? ""}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, jobName: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, jobName: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
@@ -547,7 +569,9 @@ export default function DispatchPage() {
                 <input
                   value={draft.address ?? ""}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, address: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
@@ -556,7 +580,9 @@ export default function DispatchPage() {
                 <input
                   value={draft.phone ?? ""}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, phone: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
@@ -565,7 +591,9 @@ export default function DispatchPage() {
                 <select
                   value={draft.deliveryType ?? DELIVERY_TYPES[0]}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, deliveryType: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, deliveryType: e.target.value }))
+                  }
                   className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {DELIVERY_TYPES.map((t) => (
@@ -580,7 +608,9 @@ export default function DispatchPage() {
                 <select
                   value={draft.driver ?? DRIVERS[0]}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, driver: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, driver: e.target.value }))
+                  }
                   className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {DRIVERS.map((x) => (
@@ -595,7 +625,9 @@ export default function DispatchPage() {
                 <select
                   value={draft.truck ?? TRUCKS[0]}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, truck: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, truck: e.target.value }))
+                  }
                   className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {TRUCKS.map((x) => (
@@ -610,7 +642,9 @@ export default function DispatchPage() {
                 <input
                   value={draft.orderRef ?? ""}
                   disabled={!canEdit}
-                  onChange={(e) => setDraft((d) => ({ ...d, orderRef: e.target.value }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, orderRef: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
@@ -621,8 +655,15 @@ export default function DispatchPage() {
                   disabled={!canEdit}
                   onChange={(e) => {
                     const next = e.target.value as DispatchStatus;
-                    if ((next === "loading" || next === "out" || next === "delivered") && !draft.dispatchChecked) {
-                      setStatusError("To set Loading / Out / Delivered, you must check ✅ Order checked.");
+                    if (
+                      (next === "loading" ||
+                        next === "out" ||
+                        next === "delivered") &&
+                      !draft.dispatchChecked
+                    ) {
+                      setStatusError(
+                        "To set Loading / Out / Delivered, you must check ✅ Order checked."
+                      );
                       return;
                     }
                     setStatusError("");
@@ -642,7 +683,9 @@ export default function DispatchPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-extrabold text-slate-900">✅ Order checked</div>
+                  <div className="text-sm font-extrabold text-slate-900">
+                    ✅ Order checked
+                  </div>
                   <div className="mt-1 text-xs text-slate-600">
                     Required for Loading / Out / Delivered and “Ready to Ship”.
                   </div>
@@ -650,15 +693,21 @@ export default function DispatchPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ring-1 ${
-                        depsReceived ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-800 ring-amber-200"
+                        depsReceived
+                          ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                          : "bg-amber-50 text-amber-800 ring-amber-200"
                       }`}
                     >
-                      {depsReceived ? "Dependencies received" : "Waiting on dependencies"}
+                      {depsReceived
+                        ? "Dependencies received"
+                        : "Waiting on dependencies"}
                     </span>
 
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ring-1 ${
-                        readyToShip ? "bg-emerald-600 text-white ring-emerald-700/20" : "bg-slate-100 text-slate-700 ring-slate-200"
+                        readyToShip
+                          ? "bg-emerald-600 text-white ring-emerald-700/20"
+                          : "bg-slate-100 text-slate-700 ring-slate-200"
                       }`}
                     >
                       {readyToShip ? "✅ Ready to Ship" : "Not ready to ship"}
@@ -673,7 +722,10 @@ export default function DispatchPage() {
                     disabled={!canEdit}
                     onChange={(e) => {
                       setStatusError("");
-                      setDraft((d) => ({ ...d, dispatchChecked: e.target.checked }));
+                      setDraft((d) => ({
+                        ...d,
+                        dispatchChecked: e.target.checked,
+                      }));
                     }}
                     className="h-5 w-5"
                   />
@@ -686,7 +738,9 @@ export default function DispatchPage() {
               <textarea
                 value={draft.notes ?? ""}
                 disabled={!canEdit}
-                onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, notes: e.target.value }))
+                }
                 className="h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
               />
             </Field>
@@ -695,8 +749,12 @@ export default function DispatchPage() {
             <div className="rounded-2xl border border-slate-200 bg-white">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">Supplier Dependencies</div>
-                  <div className="text-xs text-slate-500">Track anything not in-house yet.</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    Supplier Dependencies
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    Track anything not in-house yet.
+                  </div>
                 </div>
 
                 {canEdit && (
@@ -730,7 +788,9 @@ export default function DispatchPage() {
                           <input
                             value={d.supplier}
                             disabled={!canEdit}
-                            onChange={(e) => updateDep(d.id, { supplier: e.target.value })}
+                            onChange={(e) =>
+                              updateDep(d.id, { supplier: e.target.value })
+                            }
                             className="w-48 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
@@ -738,7 +798,9 @@ export default function DispatchPage() {
                           <input
                             value={d.poOrRef ?? ""}
                             disabled={!canEdit}
-                            onChange={(e) => updateDep(d.id, { poOrRef: e.target.value })}
+                            onChange={(e) =>
+                              updateDep(d.id, { poOrRef: e.target.value })
+                            }
                             className="w-40 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
@@ -746,7 +808,9 @@ export default function DispatchPage() {
                           <input
                             value={d.eta ?? ""}
                             disabled={!canEdit}
-                            onChange={(e) => updateDep(d.id, { eta: e.target.value })}
+                            onChange={(e) =>
+                              updateDep(d.id, { eta: e.target.value })
+                            }
                             className="w-32 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
@@ -756,17 +820,23 @@ export default function DispatchPage() {
                               type="checkbox"
                               checked={Boolean(d.received)}
                               disabled={!canEdit}
-                              onChange={(e) => updateDep(d.id, { received: e.target.checked })}
+                              onChange={(e) =>
+                                updateDep(d.id, { received: e.target.checked })
+                              }
                               className="h-4 w-4"
                             />
-                            <span className="text-xs text-slate-700">Received</span>
+                            <span className="text-xs text-slate-700">
+                              Received
+                            </span>
                           </label>
                         </td>
                         <td className="px-3 py-2">
                           <input
                             value={d.notes ?? ""}
                             disabled={!canEdit}
-                            onChange={(e) => updateDep(d.id, { notes: e.target.value })}
+                            onChange={(e) =>
+                              updateDep(d.id, { notes: e.target.value })
+                            }
                             className="w-full min-w-[240px] rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
@@ -788,7 +858,10 @@ export default function DispatchPage() {
 
                     {!(draft.dependencies ?? []).length && (
                       <tr>
-                        <td colSpan={6} className="px-3 py-8 text-center text-xs text-slate-500">
+                        <td
+                          colSpan={6}
+                          className="px-3 py-8 text-center text-xs text-slate-500"
+                        >
                           No dependencies.
                         </td>
                       </tr>
@@ -823,7 +896,10 @@ export default function DispatchPage() {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { setOpen(false); setMode("view"); }}
+                    onClick={() => {
+                      setOpen(false);
+                      setMode("view");
+                    }}
                     className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                     type="button"
                   >
@@ -851,7 +927,13 @@ export default function DispatchPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <div className="text-xs font-semibold text-slate-600">{label}</div>
@@ -860,7 +942,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function Modal({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -870,6 +958,96 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
     >
       <div className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         {children}
+      </div>
+    </div>
+  );
+}
+
+/** 🔐 Local, dispatch-specific PIN modal (no global pricing unlock side-effects) */
+function DispatchPinModal({
+  correctPin,
+  title,
+  subtitle,
+  buttonText,
+  onSuccess,
+  onCancel,
+}: {
+  correctPin: string;
+  title: string;
+  subtitle: string;
+  buttonText: string;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+
+  function submit() {
+    if (pin === correctPin) {
+      onSuccess();
+      setPin("");
+      setError(false);
+      return;
+    }
+    setError(true);
+    setPin("");
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      {/* transparent backdrop */}
+      <div
+        className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) onCancel();
+        }}
+      />
+
+      {/* translucent card */}
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white/50 backdrop-blur-md shadow-2xl">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <div className="text-sm font-semibold text-slate-900">{title}</div>
+          <div className="mt-1 text-xs text-slate-700">{subtitle}</div>
+        </div>
+
+        <div className="p-5">
+          <input
+            type="password"
+            value={pin}
+            onChange={(e) => {
+              setPin(e.target.value);
+              setError(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            className="w-full rounded-lg border border-slate-300 bg-white/70 px-4 py-2 text-center text-lg tracking-widest outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
+            placeholder="Enter Dispatcher PIN"
+            autoFocus
+          />
+
+          {error && (
+            <p className="mt-3 text-xs font-semibold text-rose-700">
+              Wrong PIN. Try again.
+            </p>
+          )}
+
+          <button
+            onClick={submit}
+            className="mt-4 w-full rounded-lg bg-[#FC2C38] py-2.5 text-sm font-semibold text-white transition hover:opacity-90 active:scale-[0.99]"
+            type="button"
+          >
+            {buttonText}
+          </button>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            className="mt-3 w-full rounded-lg border border-slate-200 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
