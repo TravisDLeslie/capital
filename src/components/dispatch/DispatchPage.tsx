@@ -18,6 +18,10 @@ import {
   uid,
 } from "../../data/dispatch";
 
+import MapChip from "./MapChip";
+
+import PinGate from "../PinGate";
+
 function todayISO() {
   const d = new Date();
   const y = d.getFullYear();
@@ -26,13 +30,38 @@ function todayISO() {
   return `${y}-${m}-${day}`;
 }
 
+// ✅ New labels (AM/PM)
 const TIME_SLOTS = [
-  "7:00–9:00",
-  "9:00–11:00",
-  "11:00–1:00",
-  "1:00–3:00",
-  "3:00–5:00",
+  "7:00am–9:00am",
+  "9:00am–11:00am",
+  "11:00am–1:00pm",
+  "1:00pm–3:00pm",
+  "3:00pm–5:00pm",
 ];
+
+// ✅ One-time migration from old slot labels to new AM/PM labels
+const SLOT_MIGRATION: Record<string, string> = {
+  "7:00–9:00": "7:00am–9:00am",
+  "9:00–11:00": "9:00am–11:00am",
+  "11:00–1:00": "11:00am–1:00pm",
+  "1:00–3:00": "1:00pm–3:00pm",
+  "3:00–5:00": "3:00pm–5:00pm",
+};
+
+function migrateSlotsIfNeeded(stops: DispatchStop[]) {
+  let changed = false;
+
+  const next = stops.map((s) => {
+    const migrated = SLOT_MIGRATION[s.timeSlot];
+    if (migrated && migrated !== s.timeSlot) {
+      changed = true;
+      return { ...s, timeSlot: migrated };
+    }
+    return s;
+  });
+
+  return { next, changed };
+}
 
 const STATUS: { value: DispatchStatus; label: string }[] = [
   { value: "scheduled", label: "Scheduled" },
@@ -44,7 +73,6 @@ const STATUS: { value: DispatchStatus; label: string }[] = [
   { value: "canceled", label: "Canceled" },
 ];
 
-// 🔐 Dispatcher-only PIN
 const DISPATCH_PIN = "DP3105";
 
 function pill(status: DispatchStatus) {
@@ -69,13 +97,21 @@ type ModalMode = "view" | "edit";
 
 export default function DispatchPage() {
   const [date, setDate] = useState<string>(() => todayISO());
-  const [stops, setStops] = useState<DispatchStop[]>(() => loadDispatch());
+
+  // ✅ Load + migrate timeSlot strings so old stops still show
+  const [stops, setStops] = useState<DispatchStop[]>(() => {
+    const loaded = loadDispatch();
+    const { next, changed } = migrateSlotsIfNeeded(loaded);
+    if (changed) saveDispatch(next);
+    return next;
+  });
+
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<DispatchStatus | "all">(
     "all"
   );
 
-  // 🔐 PIN modal for any write action (NO session unlock)
+  // 🔐 PIN modal for any write action (no session unlock)
   const [pinOpen, setPinOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | (() => void)>(null);
 
@@ -86,7 +122,7 @@ export default function DispatchPage() {
   const [draft, setDraft] = useState<Draft>(() => emptyStop(todayISO()));
   const [statusError, setStatusError] = useState<string>("");
 
-  const canEdit = mode === "edit";
+  const canEdit = mode === "edit"; // only true after PIN for this action flow
 
   function persist(next: DispatchStop[]) {
     setStops(next);
@@ -102,7 +138,12 @@ export default function DispatchPage() {
   function openNew() {
     setStatusError("");
     setEditingId(null);
-    setDraft(emptyStop(date));
+
+    // ✅ make sure new stops use the new AM/PM slots by default
+    const base = emptyStop(date);
+    base.timeSlot = TIME_SLOTS[0];
+
+    setDraft(base);
     setMode("edit");
     setOpen(true);
   }
@@ -112,7 +153,11 @@ export default function DispatchPage() {
     setStatusError("");
     setEditingId(s.id);
     const { id, createdAt, updatedAt, ...rest } = s;
-    setDraft(rest);
+
+    // ✅ if this stop still somehow has an old slot, map it in-place for viewing
+    const migratedSlot = SLOT_MIGRATION[(rest as any).timeSlot] ?? (rest as any).timeSlot;
+
+    setDraft({ ...(rest as Draft), timeSlot: migratedSlot });
     setMode("view");
     setOpen(true);
   }
@@ -149,7 +194,13 @@ export default function DispatchPage() {
   const bySlot = useMemo(() => {
     const map: Record<string, DispatchStop[]> = {};
     for (const slot of TIME_SLOTS) map[slot] = [];
-    for (const s of filtered) (map[s.timeSlot] ?? (map[s.timeSlot] = [])).push(s);
+
+    for (const s of filtered) {
+      // ✅ defensive: if any stop has an unknown slot string, bucket it into first slot
+      const slot = TIME_SLOTS.includes(s.timeSlot) ? s.timeSlot : TIME_SLOTS[0];
+      (map[slot] ?? (map[slot] = [])).push(s);
+    }
+
     return map;
   }, [filtered]);
 
@@ -188,6 +239,7 @@ export default function DispatchPage() {
 
     const payload: Draft = {
       ...draft,
+      timeSlot: TIME_SLOTS.includes(draft.timeSlot) ? draft.timeSlot : TIME_SLOTS[0],
       customer,
       jobName: (draft.jobName ?? "").trim(),
       address: (draft.address ?? "").trim(),
@@ -271,24 +323,52 @@ export default function DispatchPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 🔐 PIN overlay (transparent; Dispatch still visible) */}
+      {/* 🔐 PIN overlay (background still visible) */}
       {pinOpen && (
-        <DispatchPinModal
-          correctPin={DISPATCH_PIN}
-          title="Dispatch Authorization Required"
-          subtitle="Only the dispatcher may add, edit, save, or delete dispatch stops."
-          buttonText="Unlock Dispatch Action"
-          onCancel={() => {
-            setPinOpen(false);
-            setPendingAction(null);
-          }}
-          onSuccess={() => {
-            const act = pendingAction;
-            setPinOpen(false);
-            setPendingAction(null);
-            if (act) act();
-          }}
-        />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          {/* backdrop */}
+          <div
+            className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
+            onClick={() => {
+              setPinOpen(false);
+              setPendingAction(null);
+            }}
+          />
+          {/* card */}
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white/50 shadow-2xl">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-sm font-semibold text-slate-900">
+                Dispatcher PIN Required
+              </div>
+              <div className="mt-1 text-xs text-slate-600">
+                Only dispatcher can add/edit/delete stops.
+              </div>
+            </div>
+
+            <div className="p-5">
+              <PinGate
+                correctPin={DISPATCH_PIN}
+                onUnlock={() => {
+                  setPinOpen(false);
+                  const act = pendingAction;
+                  setPendingAction(null);
+                  if (act) act();
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPinOpen(false);
+                  setPendingAction(null);
+                }}
+                className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -451,7 +531,13 @@ export default function DispatchPage() {
                     </div>
 
                     <div className="mt-2 truncate text-sm text-slate-600">
-                      {s.address || "—"}
+                      <div className="mt-2">
+  {s.address ? (
+    <MapChip address={s.address} />
+  ) : (
+    <div className="truncate text-sm text-slate-600">—</div>
+  )}
+</div>
                     </div>
                   </button>
                 );
@@ -487,14 +573,16 @@ export default function DispatchPage() {
               </div>
 
               {/* ✅ Edit always asks for PIN */}
-              <button
-                type="button"
-                onClick={() => requirePin(() => setMode("edit"))}
-                className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:opacity-90"
-                title="Dispatcher only"
-              >
-                {mode === "edit" ? "Editing" : "Edit"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => requirePin(() => setMode("edit"))}
+                  className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:opacity-90"
+                  title="Dispatcher only"
+                >
+                  {mode === "edit" ? "Editing" : "Edit"}
+                </button>
+              </div>
             </div>
 
             {mode !== "edit" && (
@@ -566,12 +654,18 @@ export default function DispatchPage() {
               </Field>
 
               <Field label="Address">
+                {Boolean(draft.address) && (
+  <div className="pt-2">
+    <MapChip address={draft.address} className="bg-slate-50" />
+  </div>
+)}
                 <input
                   value={draft.address ?? ""}
                   disabled={!canEdit}
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, address: e.target.value }))
                   }
+                  
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
               </Field>
@@ -927,13 +1021,7 @@ export default function DispatchPage() {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="text-xs font-semibold text-slate-600">{label}</div>
@@ -958,96 +1046,6 @@ function Modal({
     >
       <div className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         {children}
-      </div>
-    </div>
-  );
-}
-
-/** 🔐 Local, dispatch-specific PIN modal (no global pricing unlock side-effects) */
-function DispatchPinModal({
-  correctPin,
-  title,
-  subtitle,
-  buttonText,
-  onSuccess,
-  onCancel,
-}: {
-  correctPin: string;
-  title: string;
-  subtitle: string;
-  buttonText: string;
-  onSuccess: () => void;
-  onCancel: () => void;
-}) {
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState(false);
-
-  function submit() {
-    if (pin === correctPin) {
-      onSuccess();
-      setPin("");
-      setError(false);
-      return;
-    }
-    setError(true);
-    setPin("");
-  }
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* transparent backdrop */}
-      <div
-        className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
-        onMouseDown={(e) => {
-          if (e.target === e.currentTarget) onCancel();
-        }}
-      />
-
-      {/* translucent card */}
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white/50 backdrop-blur-md shadow-2xl">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
-          <div className="mt-1 text-xs text-slate-700">{subtitle}</div>
-        </div>
-
-        <div className="p-5">
-          <input
-            type="password"
-            value={pin}
-            onChange={(e) => {
-              setPin(e.target.value);
-              setError(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
-            }}
-            className="w-full rounded-lg border border-slate-300 bg-white/70 px-4 py-2 text-center text-lg tracking-widest outline-none focus:border-[#FC2C38] focus:ring-2 focus:ring-[#FC2C38]/20"
-            placeholder="Enter Dispatcher PIN"
-            autoFocus
-          />
-
-          {error && (
-            <p className="mt-3 text-xs font-semibold text-rose-700">
-              Wrong PIN. Try again.
-            </p>
-          )}
-
-          <button
-            onClick={submit}
-            className="mt-4 w-full rounded-lg bg-[#FC2C38] py-2.5 text-sm font-semibold text-white transition hover:opacity-90 active:scale-[0.99]"
-            type="button"
-          >
-            {buttonText}
-          </button>
-
-          <button
-            type="button"
-            onClick={onCancel}
-            className="mt-3 w-full rounded-lg border border-slate-200 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
-          >
-            Cancel
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 import type { DispatchStatus } from "../../../data/dispatch";
 
 export const TIME_SLOTS = [
-  "7:00–9:00",
+  "7:00a9:00",
   "9:00–11:00",
   "11:00–1:00",
   "1:00–3:00",

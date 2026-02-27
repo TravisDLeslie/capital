@@ -84,7 +84,7 @@ export function saveDispatch(stops: DispatchStop[]) {
 export function emptyStop(date: string): Omit<DispatchStop, "id" | "createdAt" | "updatedAt"> {
   return {
     date,
-    timeSlot: "7:00–9:00",
+    timeSlot: "7:00am–9:00am",
     customer: "",
     jobName: "",
     address: "",
