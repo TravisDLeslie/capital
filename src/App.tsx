@@ -194,8 +194,18 @@ export default function App() {
   return (
     <>
       {!unlocked ? (
-        <PinGate correctPin={APP_PIN} onUnlock={() => setUnlocked(true)} />
-      ) : (
+  <PinGate
+    correctPin={APP_PIN}
+    title="Internal Access"
+    subtitle="Enter PIN to access Capital Lumber tools."
+    buttonText="Unlock App"
+    onUnlock={() => {
+      sessionStorage.setItem("capital-lumber-unlocked", "true");
+      sessionStorage.setItem("capital-lumber-unlocked-at", String(Date.now()));
+      setUnlocked(true);
+    }}
+  />
+) : (
         <div className="min-h-screen w-full bg-slate-50 text-slate-900">
           <div className="flex min-h-screen w-full">
             <Sidebar page={page} onNavigate={go} onLogout={logout} />

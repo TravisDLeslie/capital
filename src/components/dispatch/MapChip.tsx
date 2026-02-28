@@ -1,4 +1,3 @@
-import React from "react";
 
 const ORIGIN = "3105 W State St, Boise, ID 83703";
 

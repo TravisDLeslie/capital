@@ -1,11 +1,10 @@
 // src/components/dispatch/ui/DispatchStopModal.tsx
 import type { DispatchDependency, DispatchStatus, DispatchStop } from "../../../data/dispatch";
-import { DELIVERY_TYPES, DRIVERS, TRUCKS, depsAllReceived, isReadyToShip, uid } from "../../../data/dispatch";
+import { DELIVERY_TYPES, DRIVERS, TRUCKS, depsAllReceived, isReadyToShip } from "../../../data/dispatch";
 
 import Field from "./Field";
 import Modal from "./Modal";
 import { STATUS, TIME_SLOTS } from "../utils/constants";
-import { pill } from "../utils/format";
 
 export type Draft = Omit<DispatchStop, "id" | "createdAt" | "updatedAt">;
 export type ModalMode = "view" | "edit";

@@ -14,11 +14,11 @@ import {
   isHotshot,
   isReadyToShip,
   loadDispatch,
+  minutesToPretty,
+  roughTotalMinutes,
   saveDispatch,
   uid,
 } from "../../data/dispatch";
-
-import MapChip from "./MapChip";
 
 import PinGate from "../PinGate";
 
@@ -30,38 +30,18 @@ function todayISO() {
   return `${y}-${m}-${day}`;
 }
 
-// ✅ New labels (AM/PM)
+// IMPORTANT: Must match whatever you’re saving to localStorage.
+// If you previously had old slots like "7:00–9:00", keep them here too,
+// or your old stops won't appear in columns.
 const TIME_SLOTS = [
+
+  // ✅ New AM/PM slots (used by emptyStop in your data file)
   "7:00am–9:00am",
   "9:00am–11:00am",
   "11:00am–1:00pm",
   "1:00pm–3:00pm",
   "3:00pm–5:00pm",
-];
-
-// ✅ One-time migration from old slot labels to new AM/PM labels
-const SLOT_MIGRATION: Record<string, string> = {
-  "7:00–9:00": "7:00am–9:00am",
-  "9:00–11:00": "9:00am–11:00am",
-  "11:00–1:00": "11:00am–1:00pm",
-  "1:00–3:00": "1:00pm–3:00pm",
-  "3:00–5:00": "3:00pm–5:00pm",
-};
-
-function migrateSlotsIfNeeded(stops: DispatchStop[]) {
-  let changed = false;
-
-  const next = stops.map((s) => {
-    const migrated = SLOT_MIGRATION[s.timeSlot];
-    if (migrated && migrated !== s.timeSlot) {
-      changed = true;
-      return { ...s, timeSlot: migrated };
-    }
-    return s;
-  });
-
-  return { next, changed };
-}
+] as const;
 
 const STATUS: { value: DispatchStatus; label: string }[] = [
   { value: "scheduled", label: "Scheduled" },
@@ -73,6 +53,7 @@ const STATUS: { value: DispatchStatus; label: string }[] = [
   { value: "canceled", label: "Canceled" },
 ];
 
+// 🔐 Dispatcher-only PIN (no session “unlock” required — asked per write action)
 const DISPATCH_PIN = "DP3105";
 
 function pill(status: DispatchStatus) {
@@ -95,23 +76,24 @@ function pill(status: DispatchStatus) {
 type Draft = Omit<DispatchStop, "id" | "createdAt" | "updatedAt">;
 type ModalMode = "view" | "edit";
 
+const ORIGIN_ADDRESS = "3105 W State St, Boise, ID 83703";
+function mapsDirectionsUrl(dest?: string) {
+  const d = (dest ?? "").trim();
+  if (!d) return "";
+  const origin = encodeURIComponent(ORIGIN_ADDRESS);
+  const destination = encodeURIComponent(d);
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+}
+
 export default function DispatchPage() {
   const [date, setDate] = useState<string>(() => todayISO());
-
-  // ✅ Load + migrate timeSlot strings so old stops still show
-  const [stops, setStops] = useState<DispatchStop[]>(() => {
-    const loaded = loadDispatch();
-    const { next, changed } = migrateSlotsIfNeeded(loaded);
-    if (changed) saveDispatch(next);
-    return next;
-  });
-
+  const [stops, setStops] = useState<DispatchStop[]>(() => loadDispatch());
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<DispatchStatus | "all">(
     "all"
   );
 
-  // 🔐 PIN modal for any write action (no session unlock)
+  // 🔐 PIN modal for any write action
   const [pinOpen, setPinOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | (() => void)>(null);
 
@@ -122,7 +104,8 @@ export default function DispatchPage() {
   const [draft, setDraft] = useState<Draft>(() => emptyStop(todayISO()));
   const [statusError, setStatusError] = useState<string>("");
 
-  const canEdit = mode === "edit"; // only true after PIN for this action flow
+  // ✅ Edit allowed only when user has entered PIN for this action path
+  const canEdit = mode === "edit";
 
   function persist(next: DispatchStop[]) {
     setStops(next);
@@ -138,12 +121,7 @@ export default function DispatchPage() {
   function openNew() {
     setStatusError("");
     setEditingId(null);
-
-    // ✅ make sure new stops use the new AM/PM slots by default
-    const base = emptyStop(date);
-    base.timeSlot = TIME_SLOTS[0];
-
-    setDraft(base);
+    setDraft(emptyStop(date));
     setMode("edit");
     setOpen(true);
   }
@@ -153,11 +131,7 @@ export default function DispatchPage() {
     setStatusError("");
     setEditingId(s.id);
     const { id, createdAt, updatedAt, ...rest } = s;
-
-    // ✅ if this stop still somehow has an old slot, map it in-place for viewing
-    const migratedSlot = SLOT_MIGRATION[(rest as any).timeSlot] ?? (rest as any).timeSlot;
-
-    setDraft({ ...(rest as Draft), timeSlot: migratedSlot });
+    setDraft(rest);
     setMode("view");
     setOpen(true);
   }
@@ -187,20 +161,16 @@ export default function DispatchPage() {
         return blob.toLowerCase().includes(q);
       })
       .sort(
-        (a, b) => TIME_SLOTS.indexOf(a.timeSlot) - TIME_SLOTS.indexOf(b.timeSlot)
+        (a, b) =>
+          TIME_SLOTS.indexOf(a.timeSlot as any) -
+          TIME_SLOTS.indexOf(b.timeSlot as any)
       );
   }, [stops, date, query, statusFilter]);
 
   const bySlot = useMemo(() => {
     const map: Record<string, DispatchStop[]> = {};
-    for (const slot of TIME_SLOTS) map[slot] = [];
-
-    for (const s of filtered) {
-      // ✅ defensive: if any stop has an unknown slot string, bucket it into first slot
-      const slot = TIME_SLOTS.includes(s.timeSlot) ? s.timeSlot : TIME_SLOTS[0];
-      (map[slot] ?? (map[slot] = [])).push(s);
-    }
-
+    for (const slot of TIME_SLOTS) map[String(slot)] = [];
+    for (const s of filtered) (map[s.timeSlot] ?? (map[s.timeSlot] = [])).push(s);
     return map;
   }, [filtered]);
 
@@ -239,7 +209,6 @@ export default function DispatchPage() {
 
     const payload: Draft = {
       ...draft,
-      timeSlot: TIME_SLOTS.includes(draft.timeSlot) ? draft.timeSlot : TIME_SLOTS[0],
       customer,
       jobName: (draft.jobName ?? "").trim(),
       address: (draft.address ?? "").trim(),
@@ -247,6 +216,8 @@ export default function DispatchPage() {
       orderRef: (draft.orderRef ?? "").trim(),
       notes: (draft.notes ?? "").trim(),
       dependencies: cleanedDeps,
+      driveMins: Number(draft.driveMins ?? 0) || 0,
+      bufferMins: Number(draft.bufferMins ?? 10) || 10,
     };
 
     if (editingId) {
@@ -275,14 +246,7 @@ export default function DispatchPage() {
       ...d,
       dependencies: [
         ...(d.dependencies ?? []),
-        {
-          id: uid(),
-          supplier: "",
-          poOrRef: "",
-          eta: "",
-          received: false,
-          notes: "",
-        },
+        { id: uid(), supplier: "", poOrRef: "", eta: "", received: false, notes: "" },
       ],
     }));
   }
@@ -309,6 +273,7 @@ export default function DispatchPage() {
   const depsReceived = depsAllReceived(draft.dependencies);
 
   function tipForStop(s: DispatchStop) {
+    const total = minutesToPretty(roughTotalMinutes(s));
     return [
       s.customer,
       s.jobName ? `Job: ${s.jobName}` : "",
@@ -316,6 +281,8 @@ export default function DispatchPage() {
       s.truck ? `Truck: ${s.truck}` : "",
       s.deliveryType ? `Type: ${s.deliveryType}` : "",
       s.address ? `Addr: ${s.address}` : "",
+      s.driveMins ? `One-way: ${s.driveMins}m` : "",
+      s.driveMins ? `Rough total: ${total}` : "",
     ]
       .filter(Boolean)
       .join(" • ");
@@ -338,10 +305,10 @@ export default function DispatchPage() {
           <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white/50 shadow-2xl">
             <div className="border-b border-slate-200 px-5 py-4">
               <div className="text-sm font-semibold text-slate-900">
-                Dispatcher PIN Required
+                Dispatch PIN Required
               </div>
-              <div className="mt-1 text-xs text-slate-600">
-                Only dispatcher can add/edit/delete stops.
+              <div className="mt-1 text-xs text-slate-700">
+                Only the dispatcher can add, edit, or delete stops.
               </div>
             </div>
 
@@ -355,14 +322,13 @@ export default function DispatchPage() {
                   if (act) act();
                 }}
               />
-
               <button
                 type="button"
                 onClick={() => {
                   setPinOpen(false);
                   setPendingAction(null);
                 }}
-                className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -436,24 +402,29 @@ export default function DispatchPage() {
       <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-5 lg:gap-4">
         {TIME_SLOTS.map((slot) => (
           <section
-            key={slot}
+            key={String(slot)}
             className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
           >
             <div className="border-b border-slate-200 px-4 py-3">
               <div className="text-sm font-semibold text-slate-900">{slot}</div>
               <div className="mt-0.5 text-xs text-slate-500">
-                {bySlot[slot]?.length ?? 0} stop(s)
+                {bySlot[String(slot)]?.length ?? 0} stop(s)
               </div>
             </div>
 
             <div className="p-3 space-y-3">
-              {(bySlot[slot] ?? []).map((s) => {
+              {(bySlot[String(slot)] ?? []).map((s) => {
                 const hotshot = isHotshot(s);
                 const ready = isReadyToShip(s);
 
                 const cardClass = hotshot
                   ? "border-rose-200 bg-rose-50/40 hover:bg-rose-50"
                   : "border-slate-200 bg-white hover:bg-slate-50";
+
+                const roughTotal =
+                  s.driveMins && s.driveMins > 0
+                    ? minutesToPretty(roughTotalMinutes(s))
+                    : "";
 
                 return (
                   <button
@@ -464,7 +435,7 @@ export default function DispatchPage() {
                     title={tipForStop(s) || "Click to view"}
                   >
                     {/* Top badges row */}
-                    <div className="absolute left-3 top-[-10px] z-10 flex gap-2">
+                    <div className="absolute left-3 top-[-10px] z-10 flex flex-wrap gap-2">
                       {hotshot && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-3 py-1 text-[11px] font-extrabold text-white shadow ring-1 ring-rose-700/20">
                           🔥 Hotshot
@@ -473,6 +444,11 @@ export default function DispatchPage() {
                       {ready && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-extrabold text-white shadow ring-1 ring-emerald-700/20">
                           ✅ Ready to Ship
+                        </span>
+                      )}
+                      {!!roughTotal && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-extrabold text-white shadow ring-1 ring-black/20">
+                          ⏱ {roughTotal}
                         </span>
                       )}
                     </div>
@@ -492,8 +468,7 @@ export default function DispatchPage() {
                           s.status
                         )}`}
                       >
-                        {STATUS.find((x) => x.value === s.status)?.label ??
-                          s.status}
+                        {STATUS.find((x) => x.value === s.status)?.label ?? s.status}
                       </span>
                     </div>
 
@@ -530,20 +505,30 @@ export default function DispatchPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 truncate text-sm text-slate-600">
-                      <div className="mt-2">
-  {s.address ? (
-    <MapChip address={s.address} />
-  ) : (
-    <div className="truncate text-sm text-slate-600">—</div>
-  )}
-</div>
+                    {/* Address + Map chip */}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="min-w-0 truncate text-sm text-slate-600">
+                        {s.address || "—"}
+                      </div>
+
+                      {s.address && (
+                        <a
+                          href={mapsDirectionsUrl(s.address)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="shrink-0 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-extrabold text-slate-900 hover:bg-slate-50"
+                          title="Open directions from 3105 W State (live traffic)"
+                        >
+                          🗺 Map
+                        </a>
+                      )}
                     </div>
                   </button>
                 );
               })}
 
-              {!bySlot[slot]?.length && (
+              {!bySlot[String(slot)]?.length && (
                 <div className="rounded-xl border border-dashed border-slate-200 p-3 text-xs text-slate-500">
                   No stops in this slot.
                 </div>
@@ -587,9 +572,8 @@ export default function DispatchPage() {
 
             {mode !== "edit" && (
               <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700">
-                🔒 View-only. Click{" "}
-                <span className="font-extrabold">Edit</span> and enter PIN to
-                make changes.
+                🔒 View-only. Click <span className="font-extrabold">Edit</span>{" "}
+                and enter PIN to make changes.
               </div>
             )}
           </div>
@@ -624,7 +608,7 @@ export default function DispatchPage() {
                   className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   {TIME_SLOTS.map((s) => (
-                    <option key={s} value={s}>
+                    <option key={String(s)} value={String(s)}>
                       {s}
                     </option>
                   ))}
@@ -654,20 +638,26 @@ export default function DispatchPage() {
               </Field>
 
               <Field label="Address">
-                {Boolean(draft.address) && (
-  <div className="pt-2">
-    <MapChip address={draft.address} className="bg-slate-50" />
-  </div>
-)}
                 <input
                   value={draft.address ?? ""}
                   disabled={!canEdit}
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, address: e.target.value }))
                   }
-                  
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 />
+                {!!draft.address && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <a
+                      href={mapsDirectionsUrl(draft.address)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-extrabold text-slate-900 hover:bg-slate-50"
+                    >
+                      🗺 Open directions from 3105
+                    </a>
+                  </div>
+                )}
               </Field>
 
               <Field label="Phone">
@@ -743,6 +733,43 @@ export default function DispatchPage() {
                 />
               </Field>
 
+              <Field label="One-way drive time (mins)">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={String(draft.driveMins ?? 0)}
+                  disabled={!canEdit}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      driveMins: Number(e.target.value || 0),
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
+                  placeholder="ex: 18"
+                />
+                <div className="mt-2 text-xs text-slate-500">
+                  Copy from Google Maps (live traffic) — we’ll double it for round trip.
+                </div>
+              </Field>
+
+              <Field label="Buffer (mins)">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={String(draft.bufferMins ?? 10)}
+                  disabled={!canEdit}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      bufferMins: Number(e.target.value || 0),
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
+                  placeholder="10"
+                />
+              </Field>
+
               <Field label="Status">
                 <select
                   value={draft.status}
@@ -774,6 +801,7 @@ export default function DispatchPage() {
               </Field>
             </div>
 
+            {/* Dispatcher check + readiness */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -806,6 +834,13 @@ export default function DispatchPage() {
                     >
                       {readyToShip ? "✅ Ready to Ship" : "Not ready to ship"}
                     </span>
+
+                    {!!draft.driveMins && draft.driveMins > 0 && (
+                      <span className="inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold ring-1 bg-slate-900 text-white ring-black/20">
+                        ⏱ Rough total:{" "}
+                        {minutesToPretty(roughTotalMinutes(draft))}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -902,9 +937,7 @@ export default function DispatchPage() {
                           <input
                             value={d.eta ?? ""}
                             disabled={!canEdit}
-                            onChange={(e) =>
-                              updateDep(d.id, { eta: e.target.value })
-                            }
+                            onChange={(e) => updateDep(d.id, { eta: e.target.value })}
                             className="w-32 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-500"
                           />
                         </td>
@@ -1030,13 +1063,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Modal({
-  children,
-  onClose,
-}: {
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
+function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"

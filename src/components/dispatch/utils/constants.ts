@@ -2,11 +2,11 @@
 import type { DispatchStatus } from "../../../data/dispatch";
 
 export const TIME_SLOTS = [
-  "7:00a9:00",
-  "9:00–11:00",
-  "11:00–1:00",
-  "1:00–3:00",
-  "3:00–5:00",
+  "7:00am–9:00am",
+  "9:00am–11:00am",
+  "11:00am–1:00pm",
+  "1:00pm–3:00pm",
+  "3:00pm–5:00pm",
 ] as const;
 
 export const STATUS: { value: DispatchStatus; label: string }[] = [
@@ -19,5 +19,5 @@ export const STATUS: { value: DispatchStatus; label: string }[] = [
   { value: "canceled", label: "Canceled" },
 ];
 
-// 🔐 Dispatcher-only PIN (keep here or in env later)
+// 🔐 Dispatcher-only PIN (move to env later if you want)
 export const DISPATCH_PIN = "DP3105";
